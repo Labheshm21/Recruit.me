@@ -54,9 +54,12 @@ export default function ResetPasswordPage() {
       
       if (response.ok) {
         setMessage(data.message);
-        // Clear form
         setNewPassword('');
         setConfirmPassword('');
+        // Redirect to login after successful reset
+        setTimeout(() => {
+          window.location.href = '/login';
+        }, 2000);
       } else {
         setError(data.detail || 'An error occurred');
       }
@@ -71,8 +74,10 @@ export default function ResetPasswordPage() {
     <div className="min-h-screen flex items-center justify-center bg-gray-50 py-12 px-4 sm:px-6 lg:px-8">
       <div className="max-w-md w-full space-y-8">
         <div>
-          <div className="mx-auto h-12 w-12 bg-blue-600 rounded-full flex items-center justify-center">
-            <span className="text-white font-bold text-xl">L</span>
+          {/* Updated Logo */}
+          <div className="mx-auto text-center">
+            <div className="text-3xl font-bold text-black">RECRUIT.ME</div>
+            <div className="text-sm text-gray-600 mt-1">Job Portal</div>
           </div>
           <h2 className="mt-6 text-center text-3xl font-extrabold text-gray-900">
             Set New Password
@@ -85,41 +90,47 @@ export default function ResetPasswordPage() {
         <form className="mt-8 space-y-6" onSubmit={handleSubmit}>
           <div className="space-y-4">
             <div>
-              <label htmlFor="token" className="sr-only">Reset Token</label>
+              <label htmlFor="token" className="block text-sm font-medium text-gray-900 mb-1">
+                Reset Token
+              </label>
               <input
                 id="token"
                 name="token"
                 type="text"
                 required
-                className="appearance-none rounded-md relative block w-full px-3 py-2 border border-gray-300 placeholder-gray-500 text-gray-900 focus:outline-none focus:ring-blue-500 focus:border-blue-500 focus:z-10 sm:text-sm"
+                className="appearance-none rounded-md relative block w-full px-3 py-2 border border-gray-300 placeholder-gray-500 text-gray-900 focus:outline-none focus:ring-black focus:border-black focus:z-10 sm:text-sm"
                 placeholder="Reset token"
                 value={token}
                 onChange={(e) => setToken(e.target.value)}
               />
             </div>
             <div>
-              <label htmlFor="newPassword" className="sr-only">New Password</label>
+              <label htmlFor="newPassword" className="block text-sm font-medium text-gray-900 mb-1">
+                New Password
+              </label>
               <input
                 id="newPassword"
                 name="newPassword"
                 type="password"
                 required
                 minLength="6"
-                className="appearance-none rounded-md relative block w-full px-3 py-2 border border-gray-300 placeholder-gray-500 text-gray-900 focus:outline-none focus:ring-blue-500 focus:border-blue-500 focus:z-10 sm:text-sm"
+                className="appearance-none rounded-md relative block w-full px-3 py-2 border border-gray-300 placeholder-gray-500 text-gray-900 focus:outline-none focus:ring-black focus:border-black focus:z-10 sm:text-sm"
                 placeholder="New password (min 6 characters)"
                 value={newPassword}
                 onChange={(e) => setNewPassword(e.target.value)}
               />
             </div>
             <div>
-              <label htmlFor="confirmPassword" className="sr-only">Confirm Password</label>
+              <label htmlFor="confirmPassword" className="block text-sm font-medium text-gray-900 mb-1">
+                Confirm Password
+              </label>
               <input
                 id="confirmPassword"
                 name="confirmPassword"
                 type="password"
                 required
                 minLength="6"
-                className="appearance-none rounded-md relative block w-full px-3 py-2 border border-gray-300 placeholder-gray-500 text-gray-900 focus:outline-none focus:ring-blue-500 focus:border-blue-500 focus:z-10 sm:text-sm"
+                className="appearance-none rounded-md relative block w-full px-3 py-2 border border-gray-300 placeholder-gray-500 text-gray-900 focus:outline-none focus:ring-black focus:border-black focus:z-10 sm:text-sm"
                 placeholder="Confirm new password"
                 value={confirmPassword}
                 onChange={(e) => setConfirmPassword(e.target.value)}
@@ -130,6 +141,7 @@ export default function ResetPasswordPage() {
           {message && (
             <div className="rounded-md bg-green-50 p-4">
               <div className="text-sm text-green-700">{message}</div>
+              <div className="text-sm text-green-600 mt-1">Redirecting to login page...</div>
             </div>
           )}
 
@@ -143,14 +155,14 @@ export default function ResetPasswordPage() {
             <button
               type="submit"
               disabled={loading}
-              className="group relative w-full flex justify-center py-2 px-4 border border-transparent text-sm font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-50"
+              className="group relative w-full flex justify-center py-2 px-4 border border-transparent text-sm font-medium rounded-md text-white bg-black hover:bg-gray-800 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-black disabled:opacity-50"
             >
               {loading ? 'Resetting...' : 'Reset Password'}
             </button>
           </div>
 
           <div className="text-center">
-            <Link href="/login" className="font-medium text-blue-600 hover:text-blue-500">
+            <Link href="/login" className="font-medium text-black hover:text-gray-700">
               Back to Login
             </Link>
           </div>
