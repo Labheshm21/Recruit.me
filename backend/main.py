@@ -11,7 +11,10 @@ app = FastAPI()
 # ✅ CORS FIX — include all necessary permissions
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:3000"],  # frontend URL
+    allow_origins=[
+        "http://localhost:3000",
+        "http://localhost:3001"
+    ],  # frontend URLs
     allow_credentials=True,
     allow_methods=["*"],  # allow GET, POST, PUT, DELETE, OPTIONS, etc.
     allow_headers=["*"],
@@ -145,12 +148,37 @@ def login(user: UserCreate):
 
 # ---- COMPANY JOB ROUTES ----
 @app.get("/api/jobs")
-def get_jobs():
+def get_jobs(search: str = "", page: int = 1, per_page: int = 10):
     try:
         conn = get_db_connection()
-        jobs = conn.execute("SELECT * FROM jobs").fetchall()
+        
+        # Build query with search filter
+        if search:
+            query = """
+                SELECT * FROM jobs 
+                WHERE title LIKE ? OR description LIKE ? OR location LIKE ? OR company_name LIKE ?
+                ORDER BY created_at DESC
+            """
+            search_pattern = f"%{search}%"
+            jobs = conn.execute(query, (search_pattern, search_pattern, search_pattern, search_pattern)).fetchall()
+        else:
+            jobs = conn.execute("SELECT * FROM jobs ORDER BY created_at DESC").fetchall()
+        
+        # Calculate pagination
+        total_jobs = len(jobs)
+        start_idx = (page - 1) * per_page
+        end_idx = start_idx + per_page
+        paginated_jobs = jobs[start_idx:end_idx]
+        
         conn.close()
-        return {"jobs": [dict(j) for j in jobs]}
+        
+        return {
+            "jobs": [dict(j) for j in paginated_jobs],
+            "total": total_jobs,
+            "page": page,
+            "per_page": per_page,
+            "total_pages": (total_jobs + per_page - 1) // per_page
+        }
     except Exception as e:
         traceback.print_exc()
         raise HTTPException(status_code=500, detail="Error fetching jobs")

@@ -15,7 +15,12 @@ app = FastAPI()
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:3000", "http://127.0.0.1:3000"],
+    allow_origins=[
+        "http://localhost:3000",
+        "http://localhost:3001",
+        "http://127.0.0.1:3000",
+        "http://127.0.0.1:3001"
+    ],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -53,6 +58,18 @@ def init_db():
         )
     ''')
     conn.execute('CREATE INDEX IF NOT EXISTS idx_users_email ON users(email)')
+    
+    # Jobs table
+    conn.execute('''
+        CREATE TABLE IF NOT EXISTS jobs (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            title TEXT NOT NULL,
+            description TEXT NOT NULL,
+            location TEXT NOT NULL,
+            company_name TEXT,
+            created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+        )
+    ''')
     
     # Password reset tokens table
     conn.execute('''
@@ -255,6 +272,73 @@ def reset_password(request: ResetPasswordRequest):
     except Exception as e:
         print(f"💥 Error in reset_password: {str(e)}")
         raise HTTPException(status_code=500, detail=f"Server error: {str(e)}")
+
+
+# ---- JOB ROUTES ----
+class Job(BaseModel):
+    title: str
+    description: str
+    location: str
+    company_name: str | None = None
+
+
+@app.get("/api/jobs")
+def get_jobs(search: str = "", page: int = 1, per_page: int = 10):
+    try:
+        conn = get_db_connection()
+        
+        # Build query with search filter
+        if search:
+            query = """
+                SELECT * FROM jobs 
+                WHERE title LIKE ? OR description LIKE ? OR location LIKE ? OR company_name LIKE ?
+                ORDER BY created_at DESC
+            """
+            search_pattern = f"%{search}%"
+            jobs = conn.execute(query, (search_pattern, search_pattern, search_pattern, search_pattern)).fetchall()
+        else:
+            jobs = conn.execute("SELECT * FROM jobs ORDER BY created_at DESC").fetchall()
+        
+        # Calculate pagination
+        total_jobs = len(jobs)
+        start_idx = (page - 1) * per_page
+        end_idx = start_idx + per_page
+        paginated_jobs = jobs[start_idx:end_idx]
+        
+        conn.close()
+        
+        return {
+            "jobs": [dict(j) for j in paginated_jobs],
+            "total": total_jobs,
+            "page": page,
+            "per_page": per_page,
+            "total_pages": (total_jobs + per_page - 1) // per_page
+        }
+    except Exception as e:
+        print(f"💥 Error fetching jobs: {str(e)}")
+        raise HTTPException(status_code=500, detail="Error fetching jobs")
+
+
+@app.post("/api/jobs")
+def create_job(job: Job):
+    print(f"🏢 Creating new job: {job.title}")
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        cursor.execute(
+            "INSERT INTO jobs (title, description, location, company_name) VALUES (?, ?, ?, ?)",
+            (job.title, job.description, job.location, job.company_name),
+        )
+        job_id = cursor.lastrowid
+        conn.commit()
+        conn.close()
+        print("✅ Job created successfully")
+        return {"message": "Job added successfully", "id": job_id}
+    except Exception as e:
+        print(f"💥 Error creating job: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Server error: {str(e)}")
+
+
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run(app, host="0.0.0.0", port=8001)

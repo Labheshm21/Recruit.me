@@ -1,7 +1,7 @@
 import './globals.css'
 
 export const metadata = {
-  title: 'Auth App',
+  title: 'Recruit me',
   description: 'Login and Signup application',
 }
 
