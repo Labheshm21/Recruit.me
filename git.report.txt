@@ -1,0 +1,133 @@
+commit 2535f708dd68f0adec1662de5f045dc35cb6ab75
+Author: Labhesh Mahajan <lmahajan@wpi.edu>
+Date:   Mon Nov 3 23:49:13 2025 -0500
+
+    updated change
+
+ frontend/app/profilecompany/page.js | 30 +++++++++++++++---------------
+ 1 file changed, 15 insertions(+), 15 deletions(-)
+
+commit 30da5836b0557e79acd06c46f0bf2d604faa1966
+Author: Labhesh Mahajan <lmahajan@wpi.edu>
+Date:   Mon Nov 3 23:47:14 2025 -0500
+
+    latest commit
+
+ backend/app/main.py    | 86 +++++++++++++++++++++++++++++++++++++++++++++++++-
+ backend/main.py        | 36 ++++++++++++++++++---
+ frontend/app/layout.js |  2 +-
+ 3 files changed, 118 insertions(+), 6 deletions(-)
+
+commit aa4d9a9fba1e7c07aedb10b2f4f1234dd1fdfdac
+Author: Labhesh Mahajan <lmahajan@wpi.edu>
+Date:   Mon Nov 3 23:16:13 2025 -0500
+
+    updated chnages
+
+ backend/main.py                     |  13 +-
+ frontend/app/profilecompany/page.js | 221 ++++++-------------
+ frontend/app/signupcompany/page.js  | 408 ++++++++++++++++--------------------
+ 3 files changed, 261 insertions(+), 381 deletions(-)
+
+commit 7688b04fb6bed5c88aa76f010fdbdd049c169361
+Author: Labhesh Mahajan <lmahajan@wpi.edu>
+Date:   Mon Nov 3 22:45:28 2025 -0500
+
+    added the credentials to login and signup
+
+ frontend/app/logincompany/page.js  | 34 ++++++++++++++++++++++++++++++----
+ frontend/app/signupcompany/page.js | 14 +++++++-------
+ 2 files changed, 37 insertions(+), 11 deletions(-)
+
+commit 2ae30e0387b4c48c7afcaa3750a7847095814530
+Author: Glenn Dsouza <48473627+gladvinglenn@users.noreply.github.com>
+Date:   Mon Nov 3 22:03:10 2025 -0500
+
+    companyprofile update
+
+ frontend/app/profilecompany/page.js | 488 +++++++++++++++++++++++++++++-------
+ 1 file changed, 391 insertions(+), 97 deletions(-)
+
+commit 932cb5adce6885edad294ec435a29c8a0cda3e0e
+Author: Labhesh Mahajan <lmahajan@wpi.edu>
+Date:   Mon Nov 3 17:45:29 2025 -0500
+
+    comapny login and signup page
+
+ frontend/app/logincompany/page.js  | 135 +++++++++++++++++++-
+ frontend/app/signupcompany/page.js | 249 +++++++++++++++++++++++++++++++++++++
+ 2 files changed, 381 insertions(+), 3 deletions(-)
+
+commit 2bbfad07f4eab55d58ecf98fb6d4dd6724473fca
+Author: Labhesh Mahajan <lmahajan@wpi.edu>
+Date:   Sat Nov 1 18:58:18 2025 -0400
+
+    added the create job page and changed python file
+
+ backend/main.py                 | 124 ++++++++++++++--------
+ frontend/app/create-job/page.js | 222 ++++++++++++++++++++++++++++++++++++++++
+ 2 files changed, 302 insertions(+), 44 deletions(-)
+
+commit ecace570e9501d2af7442ef5f9023d629a0a90e2
+Author: gladvinglenn <48473627+gladvinglenn@users.noreply.github.com>
+Date:   Sat Nov 1 17:47:40 2025 -0400
+
+    Company frontend changes
+    
+    CompanyDashboard, Main landing page, Review and Edit profile
+
+ frontend/app/components/AuthForm.js   |  85 +++++--
+ frontend/app/dashboard/page.js        | 275 +++++++++++++++++++++
+ frontend/app/dashboardcompany/page.js |  72 ++++++
+ frontend/app/forgot-password/page.js  |  49 +++-
+ frontend/app/logincompany/page.js     |   5 +
+ frontend/app/page.js                  | 103 ++++++++
+ frontend/app/profile/page.js          | 446 ++++++++++++++++++++++++++++++++++
+ frontend/app/profilecompany/page.js   | 241 ++++++++++++++++++
+ frontend/app/reset-password/page.js   |  34 ++-
+ 9 files changed, 1273 insertions(+), 37 deletions(-)
+
+commit 93d2421f659cf379399ac52925ef8694ad3f9e5e
+Author: Ishaan Parekh <ishaanparekh33@gmail.com>
+Date:   Wed Oct 29 15:10:31 2025 -0400
+
+    Created README.md with project details
+    
+    Added project documentation including tech stack, project structure, quick start guide, and workflow.
+
+ README.md | 91 +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+ 1 file changed, 91 insertions(+)
+
+commit aa1b0b468db7938b2743670c8d0cdef1a799dd78
+Author: Ishaan Parekh <76553820+iShaanhummie@users.noreply.github.com>
+Date:   Wed Oct 29 14:17:44 2025 -0400
+
+    Implemented Register Account Use Case For Applicant
+
+ .gitignore                           |   41 +
+ backend/app/__init__.py              |    1 +
+ backend/app/database.py              |   23 +
+ backend/app/debug_main.py            |  155 +++
+ backend/app/main.py                  |  260 +++++
+ backend/app/models.py                |   11 +
+ backend/app/routes/__init__.py       |    0
+ backend/app/routes/auth.py           |   44 +
+ backend/app/schemas.py               |   16 +
+ backend/create_tables.py             |   28 +
+ backend/main.py                      |  137 +++
+ backend/requirements.txt             |   11 +
+ backend/test_setup.py                |   35 +
+ database/init.sql                    |   16 +
+ frontend/app/components/AuthForm.js  |  169 +++
+ frontend/app/forgot-password/page.js |  106 ++
+ frontend/app/globals.css             |   27 +
+ frontend/app/layout.js               |   14 +
+ frontend/app/login/page.js           |    5 +
+ frontend/app/reset-password/page.js  |  161 +++
+ frontend/app/signup/page.js          |    5 +
+ frontend/next.config.js              |    6 +
+ frontend/package-lock.json           | 2031 ++++++++++++++++++++++++++++++++++
+ frontend/package.json                |   19 +
+ frontend/postcss.config.js           |    6 +
+ frontend/tailwind.config.js          |   12 +
+ 26 files changed, 3339 insertions(+)
