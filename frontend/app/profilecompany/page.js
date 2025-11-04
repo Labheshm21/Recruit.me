@@ -66,25 +66,25 @@ export default function ProfilePage() {
       // Load company profile from localStorage
       const profileDataStr = localStorage.getItem(`company_profile_${userId}`);
       
+      let profileData;
       if (profileDataStr) {
-        const profileData = JSON.parse(profileDataStr);
-        setFormData(profileData);
-        setOriginalData(profileData);
-        console.log('Profile loaded:', profileData);
+        profileData = JSON.parse(profileDataStr);
       } else {
-        // Set default empty data
-        const emptyData = {
-          companyName: '',
-          aboutCompany: '',
-          emailAddress: userData.email || '',
-          website: '',
-          phoneNumber: '',
-          officeAddress: '',
-          faxNumber: ''
+        // Set default pre-filled data if no profile exists
+        profileData = {
+          companyName: 'Tech Solutions Inc',
+          aboutCompany: 'Leading technology solutions provider specializing in innovative software development and digital transformation services.',
+          emailAddress: userData.email || 'hr@techsolutions.com',
+          website: 'https://www.techsolutions.com',
+          phoneNumber: '+1 (555) 123-4567',
+          officeAddress: '123 Tech Street, San Francisco, CA 94105',
+          faxNumber: '+1 (555) 987-6543'
         };
-        setFormData(emptyData);
-        setOriginalData(emptyData);
       }
+      
+      setFormData(profileData);
+      setOriginalData(profileData);
+      console.log('Profile loaded:', profileData);
 
       // Load profile image if exists
       const savedImage = localStorage.getItem(`company_profile_image_${userId}`);
