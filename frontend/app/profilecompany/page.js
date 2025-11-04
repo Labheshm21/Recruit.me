@@ -2,14 +2,10 @@
 
 import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { Menu, User, ChevronDown, Edit2, Camera, CheckCircle, AlertCircle } from 'lucide-react';
-
-// Global in-memory storage as fallback
-const globalProfileStore = {
-  profiles: new Map(),
-  images: new Map()
-};
+import { useRouter } from 'next/navigation';
 
 export default function ProfilePage() {
+  const router = useRouter();
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
   const [profileImage, setProfileImage] = useState(null);
@@ -18,7 +14,6 @@ export default function ProfilePage() {
   const fileInputRef = useRef(null);
   const dropdownRef = useRef(null);
 
-  const [userid] = useState("demo-user-123");
   const [formData, setFormData] = useState({
     companyName: '',
     aboutCompany: '',
@@ -45,10 +40,8 @@ export default function ProfilePage() {
   }, []);
 
   useEffect(() => {
-    if (userid) {
-      loadProfile(userid);
-    }
-  }, [userid]);
+    loadProfile();
+  }, []);
 
   useEffect(() => {
     if (saveStatus) {
@@ -57,144 +50,77 @@ export default function ProfilePage() {
     }
   }, [saveStatus]);
 
-  const loadProfile = async (uid) => {
+  const loadProfile = () => {
     setIsLoading(true);
     try {
-      let profileData = null;
-      let imageData = null;
-      let storageMethod = 'none';
-
-      // Try persistent storage first
-      if (window.storage) {
-        try {
-          const storedProfile = await window.storage.get(`profile:${uid}`);
-          const storedImage = await window.storage.get(`profile-image:${uid}`);
-          
-          if (storedProfile && storedProfile.value) {
-            profileData = JSON.parse(storedProfile.value);
-            storageMethod = 'persistent';
-            console.log("Loaded Profile");
-          }
-          if (storedImage && storedImage.value) {
-            imageData = storedImage.value;
-          }
-        } catch (err) {
-          console.log("No Data");
-        }
+      // Get user data from localStorage
+      const userDataStr = localStorage.getItem('user');
+      if (!userDataStr) {
+        router.push('/logincompany');
+        return;
       }
 
-      // Fallback to global in-memory store
-      if (!profileData && globalProfileStore.profiles.has(uid)) {
-        profileData = globalProfileStore.profiles.get(uid);
-        imageData = globalProfileStore.images.get(uid);
-        storageMethod = 'memory';
-        console.log("Profile loaded");
-      }
+      const userData = JSON.parse(userDataStr);
+      const userId = userData.user_id;
 
-      // Fallback to sessionStorage
-      if (!profileData) {
-        try {
-          const sessionData = sessionStorage.getItem(`profile:${uid}`);
-          const sessionImage = sessionStorage.getItem(`profile-image:${uid}`);
-          
-          if (sessionData) {
-            profileData = JSON.parse(sessionData);
-            storageMethod = 'session';
-            console.log("Profile loaded");
-          }
-          if (sessionImage) {
-            imageData = sessionImage;
-          }
-        } catch (err) {
-          console.log("No data");
-        }
-      }
-
-      // If still no data, start with empty profile
-      if (!profileData) {
-        profileData = {
+      // Load company profile from localStorage
+      const profileDataStr = localStorage.getItem(`company_profile_${userId}`);
+      
+      if (profileDataStr) {
+        const profileData = JSON.parse(profileDataStr);
+        setFormData(profileData);
+        setOriginalData(profileData);
+        console.log('Profile loaded:', profileData);
+      } else {
+        // Set default empty data
+        const emptyData = {
           companyName: '',
           aboutCompany: '',
-          emailAddress: '',
+          emailAddress: userData.email || '',
           website: '',
           phoneNumber: '',
           officeAddress: '',
           faxNumber: ''
         };
-        console.log("Starting with empty profile");
+        setFormData(emptyData);
+        setOriginalData(emptyData);
       }
 
-      setFormData(profileData);
-      setOriginalData(profileData);
-      if (imageData) {
-        setProfileImage(imageData);
+      // Load profile image if exists
+      const savedImage = localStorage.getItem(`company_profile_image_${userId}`);
+      if (savedImage) {
+        setProfileImage(savedImage);
       }
 
-      console.log(`Loaded profile using: ${storageMethod}`);
     } catch (err) {
-      console.error("Error loading profile:", err);
-      const emptyData = {
-        companyName: '',
-        aboutCompany: '',
-        emailAddress: '',
-        website: '',
-        phoneNumber: '',
-        officeAddress: '',
-        faxNumber: ''
-      };
-      setFormData(emptyData);
-      setOriginalData(emptyData);
+      console.error('Error loading profile:', err);
     } finally {
       setIsLoading(false);
     }
   };
 
-  const saveToAllStorages = async (uid, data, image) => {
-    const results = {
-      persistent: false,
-      memory: false,
-      session: false
-    };
-
-    // 1. Save to persistent storage
-    if (window.storage) {
-      try {
-        await window.storage.set(`profile:${uid}`, JSON.stringify(data));
-        if (image) {
-          await window.storage.set(`profile-image:${uid}`, image);
-        }
-        results.persistent = true;
-        console.log("Details Saved");
-      } catch (err) {
-        console.warn("Failed to save:", err);
-      }
-    }
-
-    // 2. Save to global in-memory store (always works)
+  const saveToAllStorages = (formData, profileImage) => {
     try {
-      globalProfileStore.profiles.set(uid, { ...data });
-      if (image) {
-        globalProfileStore.images.set(uid, image);
-      }
-      results.memory = true;
-      console.log("Details Saved");
-    } catch (err) {
-      console.warn("Failed to save:", err);
-    }
+      const userDataStr = localStorage.getItem('user');
+      if (!userDataStr) return;
 
-    // 3. Save to sessionStorage as additional backup
-    try {
-      sessionStorage.setItem(`profile:${uid}`, JSON.stringify(data));
-      if (image) {
-        sessionStorage.setItem(`profile-image:${uid}`, image);
-      }
-      results.session = true;
-      console.log("Details Saved");
-    } catch (err) {
-      console.warn("Failed to save details:", err);
-    }
+      const userData = JSON.parse(userDataStr);
+      const userId = userData.user_id;
 
-    return results;
+      // Save profile data
+      localStorage.setItem(`company_profile_${userId}`, JSON.stringify(formData));
+
+      // Save profile image if exists
+      if (profileImage) {
+        localStorage.setItem(`company_profile_image_${userId}`, profileImage);
+      }
+
+      console.log('Profile saved successfully');
+      return true;
+    } catch (err) {
+      console.error('Error saving profile:', err);
+      return false;
+    }
   };
 
   const handleChange = useCallback((e) => {
@@ -225,7 +151,7 @@ export default function ProfilePage() {
     if (fileInputRef.current) fileInputRef.current.click();
   }, []);
 
-  const handleSave = useCallback(async () => {
+  const handleSave = useCallback(() => {
     setIsEditing(false);
     setSaveStatus(null);
     
@@ -236,23 +162,13 @@ export default function ProfilePage() {
         return;
       }
 
-      // Save to all available storage methods
-      const saveResults = await saveToAllStorages(userid, formData, profileImage);
+      // Save to localStorage
+      const success = saveToAllStorages(formData, profileImage);
       
-      // Determine success based on any storage method working
-      const anySuccess = saveResults.persistent || saveResults.memory || saveResults.session;
-      
-      if (anySuccess) {
+      if (success) {
         setSaveStatus('success');
         setOriginalData({ ...formData });
-        
-        // Show detailed feedback
-        const methods = [];
-        if (saveResults.persistent) methods.push('persistent storage');
-        if (saveResults.memory) methods.push('in-memory');
-        if (saveResults.session) methods.push('session storage');
-        
-        console.log(`Profile saved successfully to: ${methods.join(', ')}`);
+        console.log('Profile saved successfully');
       } else {
         setSaveStatus('error');
         alert("⚠️ Unable to save profile. Please try again.");
@@ -263,34 +179,27 @@ export default function ProfilePage() {
       setSaveStatus('error');
       alert("An error occurred while saving. Please try again.");
     }
-  }, [formData, profileImage, userid]);
+  }, [formData, profileImage]);
 
   const handleCancel = useCallback(() => {
     setIsEditing(false);
     setSaveStatus(null);
     setFormData({ ...originalData });
     
-    // Restore image from any available storage
-    if (userid) {
-      // Try persistent storage first
-      if (window.storage) {
-        window.storage.get(`profile-image:${userid}`)
-          .then(result => {
-            if (result && result.value) {
-              setProfileImage(result.value);
-            }
-          })
-          .catch(() => {
-            // Fallback to in-memory
-            if (globalProfileStore.images.has(userid)) {
-              setProfileImage(globalProfileStore.images.get(userid));
-            }
-          });
-      } else if (globalProfileStore.images.has(userid)) {
-        setProfileImage(globalProfileStore.images.get(userid));
+    // Restore image from localStorage
+    try {
+      const userDataStr = localStorage.getItem('user');
+      if (userDataStr) {
+        const userData = JSON.parse(userDataStr);
+        const savedImage = localStorage.getItem(`company_profile_image_${userData.user_id}`);
+        if (savedImage) {
+          setProfileImage(savedImage);
+        }
       }
+    } catch (err) {
+      console.error('Error restoring image:', err);
     }
-  }, [originalData, userid]);
+  }, [originalData]);
 
   const handleEdit = useCallback(() => {
     setIsEditing(true);

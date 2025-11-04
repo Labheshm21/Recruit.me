@@ -1,249 +1,213 @@
-'use client';
+"use client";
 
-import { useState } from 'react';
-import Link from 'next/link';
+import React, { useState } from 'react';
+import { Building2, CheckCircle } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 
-export default function CompanySignupPage() {
+export default function CompanyRegistration() {
+  const router = useRouter();
   const [formData, setFormData] = useState({
     companyName: 'Tech Solutions Inc',
-    companyWebsite: 'https://techsolutions.com',
-    contactPerson: 'John Smith',
-    phone: '+1 (555) 123-4567',
-    email: 'hr@techsolutions.com',
+    aboutCompany: 'Leading technology solutions provider',
+    emailAddress: 'hr@techsolutions.com',
+    website: 'https://www.techsolutions.com',
+    phoneNumber: '+1 (555) 123-4567',
+    officeAddress: '123 Tech Street, San Francisco, CA 94105',
+    faxNumber: '+1 (555) 987-6543',
     password: 'password123',
     confirmPassword: 'password123'
   });
-  const [loading, setLoading] = useState(false);
-  const router = useRouter();
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
+  const handleChange = (e) => {
+    const { name, value } = e.target;
+    setFormData(prev => ({
+      ...prev,
+      [name]: value
+    }));
+  };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    setLoading(true);
-
-    // Validation
-    if (!formData.companyName || !formData.email || !formData.password) {
-      alert('Please fill in company name, email and password');
-      setLoading(false);
-      return;
-    }
-
-    if (formData.password !== formData.confirmPassword) {
-      alert("Passwords don't match!");
-      setLoading(false);
-      return;
-    }
-
-    if (formData.password.length < 6) {
-      alert('Password must be at least 6 characters long');
-      setLoading(false);
-      return;
-    }
+    setIsSubmitting(true);
 
     try {
-      // For now, backend accepts email/password. Company details can be stored in future
-      const response = await fetch('http://localhost:8001/api/signup', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          email: formData.email.trim(),
-          password: formData.password,
-          // These fields would need backend support - for now they're optional
-          companyName: formData.companyName.trim(),
-          companyWebsite: formData.companyWebsite.trim(),
-          contactPerson: formData.contactPerson.trim(),
-          phone: formData.phone.trim()
-        })
-      });
-
-      const data = await response.json();
+      // Save company profile data to localStorage
+      const userId = Date.now(); // Generate a simple user ID
       
-      if (response.ok) {
-        alert('Company account created successfully! Redirecting to dashboard...');
-        // Auto-login and redirect
-        localStorage.setItem('user', JSON.stringify({
-          user_id: data.id,
-          email: data.email,
-          role: 'company'
-        }));
-        router.push('/dashboardcompany');
-      } else {
-        alert(data.detail || 'Signup failed');
-      }
-    } catch (error) {
-      console.error('Network error:', error);
-      alert('Network error. Please try again.');
-    } finally {
-      setLoading(false);
-    }
-  };
+      localStorage.setItem(`company_profile_${userId}`, JSON.stringify({
+        companyName: formData.companyName,
+        aboutCompany: formData.aboutCompany,
+        emailAddress: formData.emailAddress,
+        website: formData.website,
+        phoneNumber: formData.phoneNumber,
+        officeAddress: formData.officeAddress,
+        faxNumber: formData.faxNumber
+      }));
 
-  const handleChange = (e) => {
-    setFormData({ ...formData, [e.target.name]: e.target.value });
+      // Save user session
+      localStorage.setItem('user', JSON.stringify({
+        user_id: userId,
+        email: formData.emailAddress,
+        role: 'company'
+      }));
+
+      // Redirect to company dashboard immediately
+      router.push('/dashboardcompany');
+
+    } catch (err) {
+      console.error("Error:", err);
+      setIsSubmitting(false);
+    }
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gray-50 py-12 px-4 sm:px-6 lg:px-8">
-      <div className="max-w-2xl w-full space-y-8">
-        <div>
-          <div className="mx-auto text-center">
-            <div className="text-3xl font-bold text-black">RECRUIT.ME</div>
-            <div className="text-sm text-gray-600 mt-1">Company Portal</div>
-          </div>
-          <h2 className="mt-6 text-center text-3xl font-extrabold text-gray-900">
-            Create Company Account
-          </h2>
-          <p className="mt-2 text-center text-sm text-gray-600">
-            Start posting jobs and finding great talent
-          </p>
-        </div>
-
-        <form className="mt-8 space-y-6" onSubmit={handleSubmit}>
-          <div className="bg-white shadow rounded-lg p-6 space-y-4">
-            <div className="text-lg font-semibold text-gray-900 mb-4">Company Information</div>
-            
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div>
-                <label htmlFor="companyName" className="block text-sm font-medium text-gray-700 mb-1">
-                  Company Name <span className="text-red-500">*</span>
-                </label>
-                <input
-                  id="companyName"
-                  name="companyName"
-                  type="text"
-                  required
-                  className="appearance-none relative block w-full px-3 py-2 border border-gray-300 placeholder-gray-500 text-gray-900 rounded-md focus:outline-none focus:ring-black focus:border-black sm:text-sm"
-                  placeholder="Your Company Inc."
-                  value={formData.companyName}
-                  onChange={handleChange}
-                />
-              </div>
-
-              <div>
-                <label htmlFor="companyWebsite" className="block text-sm font-medium text-gray-700 mb-1">
-                  Company Website
-                </label>
-                <input
-                  id="companyWebsite"
-                  name="companyWebsite"
-                  type="url"
-                  className="appearance-none relative block w-full px-3 py-2 border border-gray-300 placeholder-gray-500 text-gray-900 rounded-md focus:outline-none focus:ring-black focus:border-black sm:text-sm"
-                  placeholder="https://yourcompany.com"
-                  value={formData.companyWebsite}
-                  onChange={handleChange}
-                />
-              </div>
+    <div className="min-h-screen bg-gray-50 py-12 px-6">
+      <div className="max-w-3xl mx-auto">
+        <div className="bg-white rounded-lg shadow-sm p-8">
+          <div className="flex items-center gap-4 mb-8">
+            <div className="w-16 h-16 bg-blue-600 rounded-full flex items-center justify-center">
+              <Building2 className="w-8 h-8 text-white" />
             </div>
-
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div>
-                <label htmlFor="contactPerson" className="block text-sm font-medium text-gray-700 mb-1">
-                  Contact Person
-                </label>
-                <input
-                  id="contactPerson"
-                  name="contactPerson"
-                  type="text"
-                  className="appearance-none relative block w-full px-3 py-2 border border-gray-300 placeholder-gray-500 text-gray-900 rounded-md focus:outline-none focus:ring-black focus:border-black sm:text-sm"
-                  placeholder="John Doe"
-                  value={formData.contactPerson}
-                  onChange={handleChange}
-                />
-              </div>
-
-              <div>
-                <label htmlFor="phone" className="block text-sm font-medium text-gray-700 mb-1">
-                  Phone Number
-                </label>
-                <input
-                  id="phone"
-                  name="phone"
-                  type="tel"
-                  className="appearance-none relative block w-full px-3 py-2 border border-gray-300 placeholder-gray-500 text-gray-900 rounded-md focus:outline-none focus:ring-black focus:border-black sm:text-sm"
-                  placeholder="+1 (555) 123-4567"
-                  value={formData.phone}
-                  onChange={handleChange}
-                />
-              </div>
-            </div>
-          </div>
-
-          <div className="bg-white shadow rounded-lg p-6 space-y-4">
-            <div className="text-lg font-semibold text-gray-900 mb-4">Account Credentials</div>
-            
             <div>
-              <label htmlFor="email" className="block text-sm font-medium text-gray-700 mb-1">
-                Company Email <span className="text-red-500">*</span>
-              </label>
-              <input
-                id="email"
-                name="email"
-                type="email"
-                required
-                className="appearance-none relative block w-full px-3 py-2 border border-gray-300 placeholder-gray-500 text-gray-900 rounded-md focus:outline-none focus:ring-black focus:border-black sm:text-sm"
-                placeholder="hr@yourcompany.com"
-                value={formData.email}
-                onChange={handleChange}
-              />
-            </div>
-
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div>
-                <label htmlFor="password" className="block text-sm font-medium text-gray-700 mb-1">
-                  Password <span className="text-red-500">*</span>
-                </label>
-                <input
-                  id="password"
-                  name="password"
-                  type="password"
-                  required
-                  minLength="6"
-                  className="appearance-none relative block w-full px-3 py-2 border border-gray-300 placeholder-gray-500 text-gray-900 rounded-md focus:outline-none focus:ring-black focus:border-black sm:text-sm"
-                  placeholder="Min 6 characters"
-                  value={formData.password}
-                  onChange={handleChange}
-                />
-              </div>
-
-              <div>
-                <label htmlFor="confirmPassword" className="block text-sm font-medium text-gray-700 mb-1">
-                  Confirm Password <span className="text-red-500">*</span>
-                </label>
-                <input
-                  id="confirmPassword"
-                  name="confirmPassword"
-                  type="password"
-                  required
-                  minLength="6"
-                  className="appearance-none relative block w-full px-3 py-2 border border-gray-300 placeholder-gray-500 text-gray-900 rounded-md focus:outline-none focus:ring-black focus:border-black sm:text-sm"
-                  placeholder="Re-enter password"
-                  value={formData.confirmPassword}
-                  onChange={handleChange}
-                />
-              </div>
+              <h1 className="text-3xl font-bold text-gray-900">Company Registration</h1>
+              <p className="text-gray-600">Enter your company details to get started</p>
             </div>
           </div>
 
-          <div>
-            <button
-              type="submit"
-              disabled={loading}
-              className="group relative w-full flex justify-center py-3 px-4 border border-transparent text-sm font-medium rounded-md text-white bg-black hover:bg-gray-800 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-black disabled:opacity-50"
-            >
-              {loading ? 'Creating Account...' : 'Create Company Account'}
-            </button>
-          </div>
+          <form onSubmit={handleSubmit} className="space-y-6">
+            <FormField
+              label="Company Name*"
+              name="companyName"
+              value={formData.companyName}
+              onChange={handleChange}
+              placeholder="Enter your company name"
+              required
+            />
 
-          <div className="text-center">
-            <p className="text-sm text-gray-600">
-              Already have a company account?{' '}
-              <Link href="/logincompany" className="font-medium text-black hover:text-gray-700">
-                Sign in
-              </Link>
-            </p>
-          </div>
-        </form>
+            <FormField
+              label="About Company"
+              name="aboutCompany"
+              value={formData.aboutCompany}
+              onChange={handleChange}
+              placeholder="Tell us about your company..."
+              multiline
+            />
+
+            <FormField
+              label="Email Address*"
+              name="emailAddress"
+              type="email"
+              value={formData.emailAddress}
+              onChange={handleChange}
+              placeholder="company@example.com"
+              required
+            />
+
+            <FormField
+              label="Website"
+              name="website"
+              value={formData.website}
+              onChange={handleChange}
+              placeholder="https://www.example.com"
+            />
+
+            <FormField
+              label="Phone Number"
+              name="phoneNumber"
+              type="tel"
+              value={formData.phoneNumber}
+              onChange={handleChange}
+              placeholder="+1 (555) 123-4567"
+            />
+
+            <FormField
+              label="Office Address"
+              name="officeAddress"
+              value={formData.officeAddress}
+              onChange={handleChange}
+              placeholder="123 Main St, City, State, ZIP"
+            />
+
+            <FormField
+              label="Fax Number"
+              name="faxNumber"
+              type="tel"
+              value={formData.faxNumber}
+              onChange={handleChange}
+              placeholder="+1 (555) 987-6543"
+            />
+
+            <FormField
+              label="Password*"
+              name="password"
+              type="password"
+              value={formData.password}
+              onChange={handleChange}
+              placeholder="Enter your password"
+              required
+            />
+
+            <FormField
+              label="Confirm Password*"
+              name="confirmPassword"
+              type="password"
+              value={formData.confirmPassword}
+              onChange={handleChange}
+              placeholder="Confirm your password"
+              required
+            />
+
+            <div className="flex justify-center gap-4 mt-8 pt-6 border-t">
+              <button
+                type="submit"
+                disabled={isSubmitting}
+                className={`px-12 py-3 bg-blue-600 text-white rounded-lg font-medium transition-colors ${
+                  isSubmitting ? 'opacity-50 cursor-not-allowed' : 'hover:bg-blue-700'
+                }`}
+              >
+                {isSubmitting ? (
+                  <span className="flex items-center gap-2">
+                    <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                    Registering...
+                  </span>
+                ) : (
+                  'Register Company'
+                )}
+              </button>
+            </div>
+          </form>
+        </div>
       </div>
     </div>
   );
 }
+
+const FormField = ({ label, name, type = "text", multiline = false, value, onChange, placeholder, required = false }) => (
+  <div className="flex items-start gap-4">
+    <label className="w-48 font-semibold text-right pt-3">
+      {label}:
+    </label>
+    {multiline ? (
+      <textarea
+        name={name}
+        value={value}
+        onChange={onChange}
+        placeholder={placeholder}
+        required={required}
+        rows="4"
+        className="flex-1 px-4 py-3 border border-gray-300 rounded resize-none focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white"
+      />
+    ) : (
+      <input
+        type={type}
+        name={name}
+        value={value}
+        onChange={onChange}
+        placeholder={placeholder}
+        required={required}
+        className="flex-1 px-4 py-3 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white"
+      />
+    )}
+  </div>
+);

@@ -94,14 +94,21 @@ def signup(user: UserCreate):
             raise HTTPException(status_code=400, detail="Email already exists")
 
         password_hash = hash_password(user.password)
-        conn.execute(
+        cursor = conn.cursor()
+        cursor.execute(
             "INSERT INTO users (email, hashed_password) VALUES (?, ?)",
             (user.email, password_hash)
         )
+        user_id = cursor.lastrowid
         conn.commit()
+        
+        # Fetch the created user
+        new_user = conn.execute(
+            "SELECT id, email FROM users WHERE id = ?", (user_id,)
+        ).fetchone()
         conn.close()
         print("✅ Signup successful")
-        return {"message": "User registered successfully"}
+        return {"id": new_user['id'], "email": new_user['email']}
 
     except HTTPException:
         raise
@@ -128,7 +135,7 @@ def login(user: UserCreate):
             raise HTTPException(status_code=401, detail="Invalid credentials")
 
         print("✅ Login successful")
-        return {"message": "Login successful", "user_id": db_user['id']}
+        return {"message": "Login successful", "user_id": db_user['id'], "email": db_user['email']}
     except HTTPException:
         raise
     except Exception as e:
