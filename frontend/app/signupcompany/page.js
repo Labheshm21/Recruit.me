@@ -6,13 +6,13 @@ import { useRouter } from 'next/navigation';
 
 export default function CompanySignupPage() {
   const [formData, setFormData] = useState({
-    companyName: '',
-    companyWebsite: '',
-    contactPerson: '',
-    phone: '',
-    email: '',
-    password: '',
-    confirmPassword: ''
+    companyName: 'Tech Solutions Inc',
+    companyWebsite: 'https://techsolutions.com',
+    contactPerson: 'John Smith',
+    phone: '+1 (555) 123-4567',
+    email: 'hr@techsolutions.com',
+    password: 'password123',
+    confirmPassword: 'password123'
   });
   const [loading, setLoading] = useState(false);
   const router = useRouter();

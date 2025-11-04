@@ -6,8 +6,8 @@ import { useRouter } from 'next/navigation';
 
 export default function CompanyLoginPage() {
   const [formData, setFormData] = useState({
-    email: '',
-    password: ''
+    email: 'company@example.com',
+    password: 'password123'
   });
   const [loading, setLoading] = useState(false);
   const router = useRouter();
@@ -23,7 +23,8 @@ export default function CompanyLoginPage() {
     }
 
     try {
-      const response = await fetch('http://localhost:8001/api/login', {
+      // Try to login first
+      let response = await fetch('http://localhost:8001/api/login', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -32,7 +33,32 @@ export default function CompanyLoginPage() {
         })
       });
 
-      const data = await response.json();
+      let data = await response.json();
+      
+      // If login fails (401 = incorrect credentials), try to create account
+      if (response.status === 401) {
+        console.log('Account not found, creating new account...');
+        response = await fetch('http://localhost:8001/api/signup', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            email: formData.email.trim(),
+            password: formData.password
+          })
+        });
+        data = await response.json();
+        
+        if (response.ok) {
+          alert('Account created and logged in successfully!');
+          localStorage.setItem('user', JSON.stringify({
+            user_id: data.id,
+            email: data.email,
+            role: 'company'
+          }));
+          router.push('/dashboardcompany');
+          return;
+        }
+      }
       
       if (response.ok) {
         alert('Company login successful!');
