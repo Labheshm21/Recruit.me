@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
+import { authFetch } from '../../lib/api';
 
 export default function ProfilePage() {
   const [profile, setProfile] = useState({
@@ -27,26 +28,40 @@ export default function ProfilePage() {
   const router = useRouter();
 
   useEffect(() => {
-    const userData = localStorage.getItem('user');
-    if (!userData) {
-      router.push('/login');
-      return;
-    }
-    
+    // Use the stored Cognito tokens (via authFetch). If not authenticated, redirect to login.
     fetchProfile();
   }, [router]);
 
   const fetchProfile = async () => {
     try {
-      const userData = JSON.parse(localStorage.getItem('user'));
-      const response = await fetch(`http://localhost:8001/api/profile/${userData.user_id}`);
-      
-      if (response.ok) {
-        const profileData = await response.json();
-        setProfile(profileData);
+      // 1) Get Cognito claims for the current user (requires Authorization header)
+      const claims = await authFetch('/auth/me');
+
+      // 2) Try to fetch an application profile stored on the backend (if implemented)
+      let profileData = {};
+      try {
+        profileData = await authFetch(`/profile/${claims.sub}`);
+      } catch (err) {
+        // If backend profile endpoint doesn't exist or returns 404, we'll still
+        // populate basic data from Cognito claims.
+        // console.warn('No backend profile found or failed to fetch:', err?.message || err);
+        profileData = {};
       }
+
+      setProfile({
+        ...profile,
+        ...profileData,
+        // ensure email comes from Cognito claims (authoritative)
+        email: claims.email ?? profileData.email ?? profile.email,
+      });
     } catch (error) {
       console.error('Error fetching profile:', error);
+      // likely not authenticated
+      try {
+        // redirect to login if authFetch failed due to missing token
+        router.push('/login');
+        return;
+      } catch {}
     } finally {
       setLoading(false);
     }
@@ -89,38 +104,36 @@ export default function ProfilePage() {
     setSaving(true);
     setSuccessMessage('');
     try {
-      const userData = JSON.parse(localStorage.getItem('user'));
-      const response = await fetch(`http://localhost:8001/api/profile/${userData.user_id}`, {
+      // Use authFetch so the access token is sent along with the request.
+      // We'll attempt to PUT to /profile/{sub}. If the backend doesn't support
+      // profile persistence yet, this will raise and we'll surface the error.
+      const claims = await authFetch('/auth/me');
+      const payload = {
+        ...profile,
+        first_name: profile.first_name?.trim(),
+        last_name: profile.last_name?.trim(),
+        phone: profile.phone?.trim(),
+        skills: profile.skills?.trim(),
+      };
+
+      const result = await authFetch(`/profile/${claims.sub}`, {
         method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          ...profile,
-          first_name: profile.first_name.trim(),
-          last_name: profile.last_name.trim(),
-          phone: profile.phone.trim(),
-          skills: profile.skills.trim()
-        }),
+        body: JSON.stringify(payload),
       });
 
-      const data = await response.json();
-
-      if (response.ok) {
-        setIsEditing(false);
-        setErrors({});
-        await fetchProfile(); // Refresh profile data
-        setSuccessMessage('Profile updated successfully!');
-        // Clear success message after 3 seconds
-        setTimeout(() => {
-          setSuccessMessage('');
-        }, 3000);
-      } else {
-        alert(data.detail || 'Error updating profile');
-      }
+      // If no error thrown, assume success
+      setIsEditing(false);
+      setErrors({});
+      await fetchProfile(); // Refresh profile data
+      setSuccessMessage('Profile updated successfully!');
+      // Clear success message after 3 seconds
+      setTimeout(() => {
+        setSuccessMessage('');
+      }, 3000);
     } catch (error) {
       console.error('Error updating profile:', error);
-      alert('Error updating profile');
+      const msg = String(error?.message || error?.data?.detail || 'Error updating profile');
+      alert(msg);
     } finally {
       setSaving(false);
     }
