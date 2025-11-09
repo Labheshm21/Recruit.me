@@ -40,3 +40,21 @@ class PasswordResetToken(Base):
     expires_at = Column(DateTime(timezone=True), nullable=False)
     used = Column(Integer, default=0)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
+
+class JobApplication(Base):
+    __tablename__ = "job_applications"
+
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
+    job_id = Column(Integer, ForeignKey("jobs.id"), nullable=False)
+    status = Column(String, default="applied")  # applied, withdrawn, rejected, accepted
+    applied_date = Column(DateTime(timezone=True), server_default=func.now())
+    withdrawn_date = Column(DateTime(timezone=True), nullable=True)
+    cover_letter = Column(Text, nullable=True)
+    
+    # Relationships
+    user = relationship("User")
+    job = relationship("Job")
+
+    # Unique constraint to prevent multiple applications
+    __table_args__ = (UniqueConstraint('user_id', 'job_id', name='unique_user_job_application'),)

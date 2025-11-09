@@ -96,6 +96,36 @@ class JobSearchResponse(BaseModel):
     has_next: bool
     has_prev: bool
 
+# Job Application Models
+class JobApplicationBase(BaseModel):
+    job_id: int
+    cover_letter: Optional[str] = None
+
+class JobApplicationCreate(JobApplicationBase):
+    user_id: int
+
+class JobApplicationResponse(JobApplicationBase):
+    id: int
+    user_id: int
+    status: str
+    applied_date: str
+    withdrawn_date: Optional[str]
+    job_title: str
+    company: str
+
+    class Config:
+        from_attributes = True
+
+class ApplicationStatus(BaseModel):
+    has_applied: bool
+    application_status: Optional[str]
+    can_reapply: bool
+    application_id: Optional[int]
+
+class WithdrawRequest(BaseModel):
+    application_id: int
+    user_id: int
+
 # Sample Jobs Data
 SAMPLE_JOBS = [
     # Page 1
@@ -518,6 +548,22 @@ def init_db():
         )
     ''')
     conn.execute('CREATE INDEX IF NOT EXISTS idx_reset_tokens_token ON password_reset_tokens(token)')
+    
+    # Create job_applications table
+    conn.execute('''
+        CREATE TABLE IF NOT EXISTS job_applications (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id INTEGER NOT NULL,
+            job_id INTEGER NOT NULL,
+            status TEXT DEFAULT 'applied',
+            applied_date DATETIME DEFAULT CURRENT_TIMESTAMP,
+            withdrawn_date DATETIME NULL,
+            cover_letter TEXT,
+            FOREIGN KEY (user_id) REFERENCES users (id),
+            UNIQUE(user_id, job_id)
+        )
+    ''')
+    
     conn.commit()
     conn.close()
 
@@ -808,7 +854,203 @@ def search_jobs(search: str = None, page: int = 1, per_page: int = 3):
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Server error: {str(e)}")
 
+# Job Application Endpoints
+@app.post("/api/applications", response_model=JobApplicationResponse)
+def apply_to_job(application: JobApplicationCreate):
+    try:
+        conn = get_db_connection()
+        
+        # Check if job exists in SAMPLE_JOBS
+        job = next((job for job in SAMPLE_JOBS if job['id'] == application.job_id), None)
+        if not job:
+            raise HTTPException(status_code=404, detail="Job not found")
+        
+        # Check if user already has an application for this job
+        existing_app = conn.execute(
+            """SELECT * FROM job_applications 
+               WHERE user_id = ? AND job_id = ?""",
+            (application.user_id, application.job_id)
+        ).fetchone()
+        
+        if existing_app:
+            # If application exists and is not withdrawn, prevent reapplication
+            if existing_app['status'] != 'withdrawn':
+                raise HTTPException(
+                    status_code=400, 
+                    detail="You have already applied to this job"
+                )
+            else:
+                # Reapply if previously withdrawn - update existing application
+                cursor = conn.cursor()
+                cursor.execute(
+                    """UPDATE job_applications 
+                       SET status = 'applied', withdrawn_date = NULL, cover_letter = ?
+                       WHERE id = ?""",
+                    (application.cover_letter, existing_app['id'])
+                )
+                conn.commit()
+                
+                updated_app = conn.execute(
+                    "SELECT * FROM job_applications WHERE id = ?", 
+                    (existing_app['id'],)
+                ).fetchone()
+                conn.close()
+                
+                return {
+                    **dict(updated_app),
+                    "job_title": job['title'],
+                    "company": job['company']
+                }
+        
+        # Create new application
+        cursor = conn.cursor()
+        cursor.execute(
+            """INSERT INTO job_applications 
+               (user_id, job_id, status, cover_letter) 
+               VALUES (?, ?, 'applied', ?)""",
+            (application.user_id, application.job_id, application.cover_letter)
+        )
+        application_id = cursor.lastrowid
+        conn.commit()
+        
+        new_application = conn.execute(
+            "SELECT * FROM job_applications WHERE id = ?", 
+            (application_id,)
+        ).fetchone()
+        conn.close()
+        
+        return {
+            **dict(new_application),
+            "job_title": job['title'],
+            "company": job['company']
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Server error: {str(e)}")
+
+@app.put("/api/applications/withdraw")
+def withdraw_application(request: WithdrawRequest):
+    try:
+        conn = get_db_connection()
+        
+        # Check if application exists and belongs to user
+        application = conn.execute(
+            """SELECT * FROM job_applications 
+               WHERE id = ? AND user_id = ?""",
+            (request.application_id, request.user_id)
+        ).fetchone()
+        
+        if not application:
+            raise HTTPException(status_code=404, detail="Application not found")
+        
+        if application['status'] == 'withdrawn':
+            raise HTTPException(status_code=400, detail="Application already withdrawn")
+        
+        # Withdraw the application
+        cursor = conn.cursor()
+        cursor.execute(
+            """UPDATE job_applications 
+               SET status = 'withdrawn', withdrawn_date = datetime('now') 
+               WHERE id = ?""",
+            (request.application_id,)
+        )
+        conn.commit()
+        conn.close()
+        
+        return {"message": "Application withdrawn successfully"}
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Server error: {str(e)}")
+
+@app.get("/api/applications/me", response_model=List[JobApplicationResponse])
+def get_my_applications(user_id: int):
+    try:
+        conn = get_db_connection()
+        
+        # Get all applications for the user with job details
+        applications = conn.execute(
+            """SELECT ja.*, 
+                      (SELECT title FROM (SELECT id, title FROM (
+                        SELECT 1 as id, 'Senior Backend Engineer' as title UNION ALL
+                        SELECT 2, 'Frontend Engineer' UNION ALL
+                        SELECT 3, 'Full Stack Developer' UNION ALL
+                        SELECT 4, 'DevOps Engineer' UNION ALL
+                        SELECT 5, 'Data Scientist' UNION ALL
+                        SELECT 6, 'Mobile App Developer' UNION ALL
+                        SELECT 7, 'QA Automation Engineer' UNION ALL
+                        SELECT 8, 'UX/UI Designer' UNION ALL
+                        SELECT 9, 'Product Manager' UNION ALL
+                        SELECT 10, 'Security Engineer' UNION ALL
+                        SELECT 11, 'Database Administrator' UNION ALL
+                        SELECT 12, 'Technical Lead' UNION ALL
+                        SELECT 13, 'AI/ML Engineer' UNION ALL
+                        SELECT 14, 'Cloud Solutions Architect' UNION ALL
+                        SELECT 15, 'Scrum Master'
+                      )) as jobs WHERE id = ja.job_id) as job_title,
+                      (SELECT company FROM (SELECT id, company FROM (
+                        SELECT 1 as id, 'TechCorp Solutions' as company UNION ALL
+                        SELECT 2, 'InnovateTech' UNION ALL
+                        SELECT 3, 'StartUp Ventures' UNION ALL
+                        SELECT 4, 'CloudFirst Inc' UNION ALL
+                        SELECT 5, 'DataInsights Corp' UNION ALL
+                        SELECT 6, 'AppWorks Studio' UNION ALL
+                        SELECT 7, 'QualityFirst Tech' UNION ALL
+                        SELECT 8, 'DesignInnovate' UNION ALL
+                        SELECT 9, 'ProductLabs' UNION ALL
+                        SELECT 10, 'SecureSystems' UNION ALL
+                        SELECT 11, 'DataSystems Pro' UNION ALL
+                        SELECT 12, 'LeadTech Solutions' UNION ALL
+                        SELECT 13, 'AIImpact Labs' UNION ALL
+                        SELECT 14, 'CloudNative Inc' UNION ALL
+                        SELECT 15, 'AgileWorks'
+                      )) as companies WHERE id = ja.job_id) as company
+               FROM job_applications ja
+               WHERE ja.user_id = ?
+               ORDER BY ja.applied_date DESC""",
+            (user_id,)
+        ).fetchall()
+        conn.close()
+        
+        return [dict(app) for app in applications]
+        
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Server error: {str(e)}")
+
+@app.get("/api/applications/status/{job_id}", response_model=ApplicationStatus)
+def get_application_status(job_id: int, user_id: int):
+    try:
+        conn = get_db_connection()
+        application = conn.execute(
+            """SELECT * FROM job_applications 
+               WHERE user_id = ? AND job_id = ?""",
+            (user_id, job_id)
+        ).fetchone()
+        conn.close()
+        
+        if not application:
+            return {
+                "has_applied": False,
+                "application_status": None,
+                "can_reapply": False,
+                "application_id": None
+            }
+        
+        can_reapply = application['status'] == 'withdrawn'
+        
+        return {
+            "has_applied": True,
+            "application_status": application['status'],
+            "can_reapply": can_reapply,
+            "application_id": application['id']
+        }
+        
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Server error: {str(e)}")
+
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run(app, host="0.0.0.0", port=8001)
-

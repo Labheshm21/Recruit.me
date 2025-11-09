@@ -15,6 +15,21 @@ def create_tables():
     )
     ''')
     
+    # Create job_applications table
+    cursor.execute('''
+    CREATE TABLE IF NOT EXISTS job_applications (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        user_id INTEGER NOT NULL,
+        job_id INTEGER NOT NULL,
+        status TEXT DEFAULT 'applied',
+        applied_date DATETIME DEFAULT CURRENT_TIMESTAMP,
+        withdrawn_date DATETIME NULL,
+        cover_letter TEXT,
+        FOREIGN KEY (user_id) REFERENCES users (id),
+        UNIQUE(user_id, job_id)
+    )
+    ''')
+    
     # Create index on email
     cursor.execute('CREATE INDEX IF NOT EXISTS idx_users_email ON users(email)')
     
@@ -22,7 +37,7 @@ def create_tables():
     conn.commit()
     conn.close()
     
-    print("✅ Users table created successfully!")
+    print("✅ Users and job_applications tables created successfully!")
 
 if __name__ == "__main__":
     create_tables()

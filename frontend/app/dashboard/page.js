@@ -13,6 +13,7 @@ export default function DashboardPage() {
   const [totalPages, setTotalPages] = useState(1);
   const [totalJobs, setTotalJobs] = useState(0);
   const [jobsLoading, setJobsLoading] = useState(false);
+  const [applicationStatuses, setApplicationStatuses] = useState({});
   const router = useRouter();
 
   useEffect(() => {
@@ -22,10 +23,27 @@ export default function DashboardPage() {
       return;
     }
     
-    setUser(JSON.parse(userData));
+    const userObj = JSON.parse(userData);
+    setUser(userObj);
     setLoading(false);
     fetchJobs();
   }, [router, currentPage]);
+
+  const fetchApplicationStatus = async (jobId) => {
+    try {
+      const userData = JSON.parse(localStorage.getItem('user'));
+      const response = await fetch(
+        `http://localhost:8001/api/applications/status/${jobId}?user_id=${userData.user_id}`
+      );
+      const status = await response.json();
+      setApplicationStatuses(prev => ({
+        ...prev,
+        [jobId]: status
+      }));
+    } catch (error) {
+      console.error('Error fetching application status:', error);
+    }
+  };
 
   const fetchJobs = async (search = '') => {
     setJobsLoading(true);
@@ -39,11 +57,44 @@ export default function DashboardPage() {
         setJobs(data.jobs);
         setTotalPages(data.total_pages);
         setTotalJobs(data.total_jobs);
+        
+        // Fetch application status for each job
+        data.jobs.forEach(job => {
+          fetchApplicationStatus(job.id);
+        });
       }
     } catch (error) {
       console.error('Error fetching jobs:', error);
     } finally {
       setJobsLoading(false);
+    }
+  };
+
+  const handleApply = async (jobId) => {
+    try {
+      const userData = JSON.parse(localStorage.getItem('user'));
+      const response = await fetch('http://localhost:8001/api/applications', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          job_id: jobId,
+          user_id: userData.user_id
+        }),
+      });
+
+      if (response.ok) {
+        alert('Application submitted successfully!');
+        // Refresh the application status
+        fetchApplicationStatus(jobId);
+      } else {
+        const errorData = await response.json();
+        alert(errorData.detail || 'Failed to apply to job');
+      }
+    } catch (error) {
+      console.error('Error applying to job:', error);
+      alert('Error applying to job. Please try again.');
     }
   };
 
@@ -57,13 +108,55 @@ export default function DashboardPage() {
     setCurrentPage(page);
   };
 
-  const handleApply = (jobId) => {
-    alert(`Application submitted for job #${jobId}! We'll review your profile and get back to you soon.`);
-  };
-
   const handleLogout = () => {
     localStorage.removeItem('user');
     router.push('/login');
+  };
+
+  const getApplicationButton = (job) => {
+    const status = applicationStatuses[job.id];
+    
+    if (!status || !status.has_applied) {
+      return (
+        <button
+          onClick={() => handleApply(job.id)}
+          className="px-6 py-2 bg-black text-white rounded-lg hover:bg-gray-800 transition-colors"
+        >
+          Apply Now
+        </button>
+      );
+    }
+    
+    if (status.application_status === 'applied') {
+      return (
+        <button
+          disabled
+          className="px-6 py-2 bg-gray-400 text-white rounded-lg cursor-not-allowed"
+        >
+          Applied ✓
+        </button>
+      );
+    }
+    
+    if (status.application_status === 'withdrawn' && status.can_reapply) {
+      return (
+        <button
+          onClick={() => handleApply(job.id)}
+          className="px-6 py-2 bg-black text-white rounded-lg hover:bg-gray-800 transition-colors"
+        >
+          Reapply
+        </button>
+      );
+    }
+    
+    return (
+      <button
+        disabled
+        className="px-6 py-2 bg-gray-400 text-white rounded-lg cursor-not-allowed"
+      >
+        Applied
+      </button>
+    );
   };
 
   if (loading) {
@@ -81,7 +174,6 @@ export default function DashboardPage() {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex justify-between items-center h-16">
             <div className="flex items-center">
-              {/* Logo */}
               <div className="flex flex-col">
                 <div className="text-2xl font-bold text-black">RECRUIT.ME</div>
                 <div className="text-sm text-gray-600 -mt-1">Job Portal</div>
@@ -90,12 +182,12 @@ export default function DashboardPage() {
                 <Link href="/dashboard" className="text-black font-medium border-b-2 border-black py-2">
                   Search Jobs
                 </Link>
-                <button className="text-gray-500 hover:text-gray-700 font-medium py-2">
-                  My Offers
-                </button>
-                <button className="text-gray-500 hover:text-gray-700 font-medium py-2">
+                <Link 
+                  href="/applications" 
+                  className="text-gray-500 hover:text-gray-700 font-medium py-2"
+                >
                   My Applications
-                </button>
+                </Link>
               </nav>
             </div>
             
@@ -124,7 +216,6 @@ export default function DashboardPage() {
           <div className="bg-white rounded-lg shadow p-6 mb-6">
             <h2 className="text-2xl font-bold text-gray-900 mb-4">Find Your Dream Job</h2>
             
-            {/* Search Form */}
             <form onSubmit={handleSearch} className="flex space-x-4 mb-6">
               <input
                 type="text"
@@ -141,7 +232,6 @@ export default function DashboardPage() {
               </button>
             </form>
 
-            {/* Search Info */}
             <div className="flex justify-between items-center mb-4">
               <p className="text-gray-600">
                 {totalJobs} {totalJobs === 1 ? 'job' : 'jobs'} found
@@ -177,12 +267,7 @@ export default function DashboardPage() {
                           <span className="px-2 py-1 bg-yellow-100 text-yellow-800 text-sm rounded">{job.salary}</span>
                         </div>
                       </div>
-                      <button
-                        onClick={() => handleApply(job.id)}
-                        className="px-6 py-2 bg-black text-white rounded-lg hover:bg-gray-800 transition-colors"
-                      >
-                        Apply Now
-                      </button>
+                      {getApplicationButton(job)}
                     </div>
 
                     <p className="text-gray-600 mb-4">{job.description}</p>
