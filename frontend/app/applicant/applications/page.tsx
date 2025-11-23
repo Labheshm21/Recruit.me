@@ -3,6 +3,8 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL;
+
 type Application = {
   jobId: number;
   title: string;
@@ -10,44 +12,38 @@ type Application = {
   location: string;
   skills: string;
   description: string;
-  appliedAt: string;
+  appliedAt?: string;
 };
 
-async function parseApiResponse(res: Response) {
-  const raw = await res.json().catch(() => ({} as any));
+function parseLambdaResponse(outer: any, res: Response) {
+  const statusCode =
+    typeof outer?.statusCode === "number" ? outer.statusCode : res.status;
 
-  if (raw && typeof raw.statusCode === "undefined") {
-    return {
-      httpStatus: res.status,
-      statusCode: res.status,
-      payload: raw,
-    };
-  }
+  let payload: any = {};
 
-  let inner: any = raw;
-  if (raw && typeof raw.body === "string") {
+  if (typeof outer?.body === "string") {
     try {
-      inner = JSON.parse(raw.body);
+      payload = JSON.parse(outer.body);
     } catch {
-      inner = {};
+      payload = {};
     }
+  } else if (outer?.body) {
+    payload = outer.body;
+  } else {
+    payload = outer;
   }
 
-  return {
-    httpStatus: res.status,
-    statusCode:
-      typeof raw.statusCode === "number" ? raw.statusCode : res.status,
-    payload: inner,
-  };
+  return { statusCode, payload };
 }
 
 export default function MyApplicationsPage() {
   const router = useRouter();
+
   const [email, setEmail] = useState<string | null>(null);
   const [applications, setApplications] = useState<Application[]>([]);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  const [message, setMessage] = useState<string | null>(null);
+  const [error, setError] = useState("");
+  const [message, setMessage] = useState("");
 
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -62,11 +58,12 @@ export default function MyApplicationsPage() {
 
   const loadApplications = async (userEmail: string) => {
     setLoading(true);
-    setError(null);
-    setMessage(null);
+    setError("");
+    setMessage("");
+
     try {
       const res = await fetch(
-        `${process.env.NEXT_PUBLIC_API_BASE_URL}/applicants/jobs/applications`,
+        `${API_BASE_URL}/applicants/jobs/applications`,
         {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -74,7 +71,9 @@ export default function MyApplicationsPage() {
         }
       );
 
-      const { statusCode, payload } = await parseApiResponse(res);
+      const outer = await res.json().catch(() => ({} as any));
+      const { statusCode, payload } = parseLambdaResponse(outer, res);
+
       if (statusCode >= 400) {
         setError(payload?.message || "Failed to load applications.");
         setApplications([]);
@@ -92,17 +91,13 @@ export default function MyApplicationsPage() {
   };
 
   const handleWithdraw = async (jobId: number) => {
-    if (!email) {
-      router.push("/applicant/login");
-      return;
-    }
-
-    setMessage(null);
-    setError(null);
+    if (!email) return;
+    setError("");
+    setMessage("");
 
     try {
       const res = await fetch(
-        `${process.env.NEXT_PUBLIC_API_BASE_URL}/applicants/jobs/withdraw`,
+        `${API_BASE_URL}/applicants/jobs/withdraw`,
         {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -110,79 +105,115 @@ export default function MyApplicationsPage() {
         }
       );
 
-      const { statusCode, payload } = await parseApiResponse(res);
+      const outer = await res.json().catch(() => ({} as any));
+      const { statusCode, payload } = parseLambdaResponse(outer, res);
+
       if (statusCode >= 400) {
         setError(payload?.message || "Could not withdraw application.");
         return;
       }
 
       setMessage(payload?.message || "Application withdrawn.");
-      // Refresh list
       loadApplications(email);
     } catch (err) {
-      console.error("handleWithdraw error:", err);
+      console.error("withdraw error:", err);
       setError("Network error: could not withdraw.");
     }
   };
 
   return (
-    <div style={{ padding: "1rem", background: "#e0e0e0", minHeight: "100vh" }}>
-      <button onClick={() => router.push("/applicant/home")}>
-        ← Back to Home
-      </button>
+    <div className="page-shell--scroll">
+      <div style={{ maxWidth: "960px", margin: "0 auto 0.75rem" }}>
+        <button
+          onClick={() => router.push("/applicant/home")}
+          className="btn-link"
+        >
+          ← Back to Home
+        </button>
+      </div>
 
-      <div
-        style={{
-          maxWidth: 700,
-          margin: "1rem auto",
-          background: "#f2f2f2",
-          padding: "1rem",
-          border: "1px solid #aaa",
-        }}
-      >
-        <h2 style={{ textAlign: "center" }}>My Applications</h2>
+      <div className="card-wide">
+        <h1 className="card-title">My Applications</h1>
+        <p className="card-subtitle">
+          Review the jobs you&apos;ve applied to and withdraw if needed.
+        </p>
 
         {loading ? (
-          <p>Loading applications...</p>
+          <p>Loading applications…</p>
         ) : error ? (
-          <p style={{ color: "red" }}>{error}</p>
+          <p style={{ color: "#b91c1c" }}>{error}</p>
         ) : applications.length === 0 ? (
-          <p>You have not applied to any jobs yet.</p>
+          <p>You haven&apos;t applied to any jobs yet.</p>
         ) : (
-          <div>
+          <div style={{ display: "flex", flexDirection: "column", gap: "0.6rem" }}>
             {applications.map((app) => (
               <div
                 key={app.jobId}
-                style={{
-                  background: "#fff",
-                  border: "1px solid #ccc",
-                  padding: "0.7rem",
-                  marginBottom: "0.5rem",
-                }}
+                className="section-box"
+                style={{ backgroundColor: "#f9fafb" }}
               >
-                <strong>{app.title}</strong> <br />
-                <span>{app.company}</span> <br />
-                <small>{app.location}</small> <br />
-                <small>Skills: {app.skills}</small> <br />
-                <small>
-                  Applied at:{" "}
-                  {app.appliedAt
-                    ? new Date(app.appliedAt).toLocaleString()
-                    : ""}
-                </small>
-                <br />
-                <button
-                  onClick={() => handleWithdraw(app.jobId)}
-                  style={{ marginTop: "0.4rem" }}
+                <div
+                  style={{
+                    display: "flex",
+                    justifyContent: "space-between",
+                    alignItems: "center",
+                    marginBottom: "0.25rem",
+                  }}
                 >
-                  Withdraw
-                </button>
+                  <div>
+                    <strong>{app.title}</strong>
+                    <div
+                      style={{ fontSize: "0.85rem", color: "#4b5563" }}
+                    >
+                      {app.company} · {app.location}
+                    </div>
+                    {app.appliedAt && (
+                      <div
+                        style={{ fontSize: "0.75rem", color: "#9ca3af" }}
+                      >
+                        Applied at:{" "}
+                        {new Date(app.appliedAt).toLocaleString()}
+                      </div>
+                    )}
+                  </div>
+
+                  <button
+                    className="btn-secondary"
+                    style={{ width: "auto" }}
+                    onClick={() => handleWithdraw(app.jobId)}
+                  >
+                    Withdraw
+                  </button>
+                </div>
+
+                <div style={{ fontSize: "0.8rem", color: "#6b7280" }}>
+                  Skills: {app.skills}
+                </div>
+                <div
+                  style={{
+                    fontSize: "0.8rem",
+                    color: "#9ca3af",
+                    marginTop: "0.25rem",
+                  }}
+                >
+                  {app.description}
+                </div>
               </div>
             ))}
           </div>
         )}
 
-        {message && <p style={{ color: "green", marginTop: "0.5rem" }}>{message}</p>}
+        {message && (
+          <p
+            style={{
+              color: "#166534",
+              fontSize: "0.9rem",
+              marginTop: "0.75rem",
+            }}
+          >
+            {message}
+          </p>
+        )}
       </div>
     </div>
   );

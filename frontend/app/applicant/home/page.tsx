@@ -3,6 +3,8 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL;
+
 type Job = {
   id: number;
   title: string;
@@ -12,36 +14,30 @@ type Job = {
   description: string;
 };
 
-async function parseApiResponse(res: Response) {
-  const raw = await res.json().catch(() => ({} as any));
+function parseLambdaResponse(outer: any, res: Response) {
+  const statusCode =
+    typeof outer?.statusCode === "number" ? outer.statusCode : res.status;
 
-  if (raw && typeof raw.statusCode === "undefined") {
-    return {
-      httpStatus: res.status,
-      statusCode: res.status,
-      payload: raw,
-    };
-  }
+  let payload: any = {};
 
-  let inner: any = raw;
-  if (raw && typeof raw.body === "string") {
+  if (typeof outer?.body === "string") {
     try {
-      inner = JSON.parse(raw.body);
+      payload = JSON.parse(outer.body);
     } catch {
-      inner = {};
+      payload = {};
     }
+  } else if (outer?.body) {
+    payload = outer.body;
+  } else {
+    payload = outer;
   }
 
-  return {
-    httpStatus: res.status,
-    statusCode:
-      typeof raw.statusCode === "number" ? raw.statusCode : res.status,
-    payload: inner,
-  };
+  return { statusCode, payload };
 }
 
-export default function ApplicantHome() {
+export default function ApplicantHomePage() {
   const router = useRouter();
+
   const [email, setEmail] = useState<string | null>(null);
   const [emailChecked, setEmailChecked] = useState(false);
 
@@ -50,12 +46,10 @@ export default function ApplicantHome() {
   const [currentPage, setCurrentPage] = useState(1);
   const [totalPages, setTotalPages] = useState(5);
   const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-
+  const [error, setError] = useState("");
   const [appliedJobIds, setAppliedJobIds] = useState<number[]>([]);
-  const [actionMessage, setActionMessage] = useState<string | null>(null);
+  const [actionMessage, setActionMessage] = useState("");
 
-  // Make sure user is logged in
   useEffect(() => {
     if (typeof window === "undefined") return;
     const storedEmail = localStorage.getItem("email");
@@ -68,32 +62,29 @@ export default function ApplicantHome() {
   }, [router]);
 
   useEffect(() => {
-    if (emailChecked) {
-      fetchJobs(1, searchTerm);
-      if (email) {
-        fetchAppliedJobs(email);
-      }
+    if (!emailChecked) return;
+    fetchJobs(1, searchTerm);
+    if (email) {
+      fetchAppliedJobs(email);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [emailChecked, email]);
 
   const fetchJobs = async (page: number, term: string) => {
     setLoading(true);
-    setError(null);
+    setError("");
     try {
       const res = await fetch(
-        `${process.env.NEXT_PUBLIC_API_BASE_URL}/applicants/jobs/search`,
+        `${API_BASE_URL}/applicants/jobs/search`,
         {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            searchTerm: term,
-            page,
-          }),
+          body: JSON.stringify({ searchTerm: term, page }),
         }
       );
 
-      const { statusCode, payload } = await parseApiResponse(res);
+      const outer = await res.json().catch(() => ({} as any));
+      const { statusCode, payload } = parseLambdaResponse(outer, res);
 
       if (statusCode >= 400) {
         setError(payload?.message || "Failed to load jobs.");
@@ -116,7 +107,7 @@ export default function ApplicantHome() {
   const fetchAppliedJobs = async (userEmail: string) => {
     try {
       const res = await fetch(
-        `${process.env.NEXT_PUBLIC_API_BASE_URL}/applicants/jobs/applications`,
+        `${API_BASE_URL}/applicants/jobs/applications`,
         {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -124,9 +115,11 @@ export default function ApplicantHome() {
         }
       );
 
-      const { statusCode, payload } = await parseApiResponse(res);
+      const outer = await res.json().catch(() => ({} as any));
+      const { statusCode, payload } = parseLambdaResponse(outer, res);
+
       if (statusCode >= 400) {
-        console.warn("Failed to fetch applied jobs:", payload?.message);
+        console.warn("Failed to fetch applied jobs", payload?.message);
         return;
       }
 
@@ -148,7 +141,7 @@ export default function ApplicantHome() {
     router.push("/applicant/login");
   };
 
-  const handleSearchClick = () => {
+  const handleSearch = () => {
     fetchJobs(1, searchTerm);
   };
 
@@ -158,7 +151,7 @@ export default function ApplicantHome() {
   };
 
   const handleApply = async (jobId: number) => {
-    setActionMessage(null);
+    setActionMessage("");
     if (!email) {
       router.push("/applicant/login");
       return;
@@ -166,7 +159,7 @@ export default function ApplicantHome() {
 
     try {
       const res = await fetch(
-        `${process.env.NEXT_PUBLIC_API_BASE_URL}/applicants/jobs/apply`,
+        `${API_BASE_URL}/applicants/jobs/apply`,
         {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -174,7 +167,8 @@ export default function ApplicantHome() {
         }
       );
 
-      const { statusCode, payload } = await parseApiResponse(res);
+      const outer = await res.json().catch(() => ({} as any));
+      const { statusCode, payload } = parseLambdaResponse(outer, res);
 
       if (statusCode >= 400) {
         setActionMessage(payload?.message || "Could not apply to job.");
@@ -198,11 +192,7 @@ export default function ApplicantHome() {
         <button
           key={i}
           onClick={() => handlePageChange(i)}
-          style={{
-            fontWeight: currentPage === i ? "bold" : "normal",
-            border: "1px solid #000",
-            padding: "0.2rem 0.6rem",
-          }}
+          className={i === currentPage ? "is-active" : ""}
         >
           {i}
         </button>
@@ -212,122 +202,146 @@ export default function ApplicantHome() {
   };
 
   return (
-    <div style={{ padding: "1rem", background: "#e0e0e0", minHeight: "100vh" }}>
-      {/* Top nav */}
-      <div
-        style={{
-          display: "flex",
-          justifyContent: "flex-end",
-          gap: "0.5rem",
-          marginBottom: "2rem",
-        }}
-      >
-        <button onClick={() => router.push("/applicant/profile")}>Profile</button>
-        <button onClick={() => router.push("/applicant/applications")}>
-          My Applications
-        </button>
-        <button /* placeholder */>My Offers</button>
-        <button onClick={handleLogout}>Log Out</button>
-      </div>
-
-      {/* Center content */}
-      <div
-        style={{
-          display: "flex",
-          flexDirection: "column",
-          alignItems: "center",
-          marginTop: "4rem",
-        }}
-      >
-        <h1>Logo</h1>
-
-        {/* Search + list */}
-        <div style={{ marginTop: "2rem" }}>
-          <div style={{ display: "flex" }}>
-            <input
-              placeholder="Search by Company or Skills"
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              style={{
-                width: "260px",
-                padding: "0.4rem",
-                border: "1px solid #000",
-                borderRight: "none",
-              }}
-            />
-            <button onClick={handleSearchClick}>Search</button>
-          </div>
-
-          <div
-            style={{
-              width: "360px",
-              height: "170px",
-              border: "1px solid #000",
-              marginTop: "0.5rem",
-              padding: "0.5rem",
-              background: "#fff",
-              overflowY: "auto",
-            }}
+    <div className="page-shell--scroll">
+      <div className="card-wide">
+        <div className="nav-top">
+          <button
+            className="nav-chip"
+            onClick={() => router.push("/applicant/profile")}
           >
-            {loading ? (
-              <p>Loading jobs...</p>
-            ) : error ? (
-              <p style={{ color: "red" }}>{error}</p>
-            ) : jobs.length === 0 ? (
-              <p>No jobs found.</p>
-            ) : (
-              jobs.map((job) => {
-                const applied = appliedJobIds.includes(job.id);
-                return (
+            Profile
+          </button>
+          <button
+            className="nav-chip"
+            onClick={() => router.push("/applicant/applications")}
+          >
+            My Applications
+          </button>
+          <button className="nav-chip">My Offers</button>
+          <button
+            className="nav-chip nav-chip--primary"
+            onClick={handleLogout}
+          >
+            Log Out
+          </button>
+        </div>
+
+        <h1 className="card-title">Job Search</h1>
+        <p className="card-subtitle">
+          Search jobs by company name or skill keywords, then apply directly.
+        </p>
+
+        {/* Search bar */}
+        <div
+          style={{
+            display: "flex",
+            gap: "0.5rem",
+            alignItems: "center",
+            marginBottom: "1rem",
+          }}
+        >
+          <input
+            className="input"
+            placeholder="Search by company or skills…"
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+          />
+          <button
+            onClick={handleSearch}
+            className="btn-primary"
+            style={{ width: "auto", paddingInline: "1.1rem" }}
+          >
+            Search
+          </button>
+        </div>
+
+        {/* Jobs list */}
+        <div className="jobs-container">
+          {loading ? (
+            <p>Loading jobs…</p>
+          ) : error ? (
+            <p style={{ color: "#b91c1c" }}>{error}</p>
+          ) : jobs.length === 0 ? (
+            <p>No jobs found.</p>
+          ) : (
+            jobs.map((job) => {
+              const applied = appliedJobIds.includes(job.id);
+              return (
+                <div key={job.id} className="job-card">
                   <div
-                    key={job.id}
                     style={{
-                      marginBottom: "0.7rem",
-                      borderBottom: "1px solid #ddd",
-                      paddingBottom: "0.5rem",
+                      display: "flex",
+                      justifyContent: "space-between",
+                      alignItems: "center",
+                      marginBottom: "0.25rem",
                     }}
                   >
-                    <strong>{job.title}</strong> <br />
-                    <span>{job.company}</span> <br />
-                    <small>{job.location}</small> <br />
-                    <small>Skills: {job.skills}</small>
-                    <br />
+                    <div>
+                      <strong>{job.title}</strong>
+                      <div
+                        style={{
+                          fontSize: "0.85rem",
+                          color: "#4b5563",
+                        }}
+                      >
+                        {job.company} · {job.location}
+                      </div>
+                    </div>
                     <button
                       onClick={() => handleApply(job.id)}
                       disabled={applied}
-                      style={{ marginTop: "0.3rem" }}
+                      className="btn-primary"
+                      style={{
+                        width: "auto",
+                        opacity: applied ? 0.6 : 1,
+                      }}
                     >
                       {applied ? "Applied" : "Apply"}
                     </button>
                   </div>
-                );
-              })
-            )}
-          </div>
-
-          {/* Action message */}
-          {actionMessage && (
-            <p style={{ marginTop: "0.5rem", color: "green" }}>{actionMessage}</p>
+                  <div
+                    style={{
+                      fontSize: "0.8rem",
+                      color: "#6b7280",
+                    }}
+                  >
+                    Skills: {job.skills}
+                  </div>
+                  <div
+                    style={{
+                      fontSize: "0.8rem",
+                      color: "#9ca3af",
+                      marginTop: "0.25rem",
+                    }}
+                  >
+                    {job.description}
+                  </div>
+                </div>
+              );
+            })
           )}
+        </div>
 
-          {/* Pagination */}
-          <div
+        {actionMessage && (
+          <p
             style={{
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              gap: "0.5rem",
-              marginTop: "0.5rem",
+              marginTop: "0.75rem",
+              fontSize: "0.9rem",
+              color: "#166534",
             }}
           >
-            <button onClick={() => handlePageChange(currentPage - 1)}>
-              ←
-            </button>
-            {renderPageButtons()}
-            <button onClick={() => handlePageChange(currentPage + 1)}>
-              →
-            </button>
-          </div>
+            {actionMessage}
+          </p>
+        )}
+
+        <div className="pagination">
+          <button onClick={() => handlePageChange(currentPage - 1)}>
+            ←
+          </button>
+          {renderPageButtons()}
+          <button onClick={() => handlePageChange(currentPage + 1)}>
+            →
+          </button>
         </div>
       </div>
     </div>

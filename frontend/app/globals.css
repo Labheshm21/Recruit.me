@@ -1,26 +1,178 @@
-@import "tailwindcss";
-
-:root {
-  --background: #ffffff;
-  --foreground: #171717;
+/* --- Shared layout + card --- */
+.page-shell {
+  min-height: 100vh;
+  background-color: #f3f4f6; /* light gray */
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1.5rem;
 }
 
-@theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+.page-shell--scroll {
+  min-height: 100vh;
+  background-color: #f3f4f6;
+  padding: 1.5rem;
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+.card {
+  width: 100%;
+  max-width: 640px;
+  background-color: #ffffff;
+  border-radius: 12px;
+  box-shadow: 0 12px 30px rgba(15, 23, 42, 0.15);
+  padding: 2rem;
 }
 
-body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+.card-wide {
+  width: 100%;
+  max-width: 960px;
+  background-color: #ffffff;
+  border-radius: 12px;
+  box-shadow: 0 12px 30px rgba(15, 23, 42, 0.15);
+  padding: 1.75rem 2rem;
+}
+
+/* --- Typography helpers --- */
+.card-title {
+  font-size: 1.35rem;
+  margin-bottom: 0.25rem;
+}
+
+.card-subtitle {
+  font-size: 0.9rem;
+  color: #6b7280; /* gray-600 */
+  margin-bottom: 1.5rem;
+}
+
+.label {
+  display: block;
+  font-weight: 500;
+  font-size: 0.9rem;
+  color: #374151; /* gray-700 */
+  margin-bottom: 0.25rem;
+}
+
+/* --- Inputs --- */
+.input,
+.textarea {
+  width: 100%;
+  padding: 0.65rem 0.75rem;
+  border-radius: 0.5rem;
+  border: 1px solid #d1d5db; /* gray-300 */
+  font-size: 0.95rem;
+}
+
+.textarea {
+  min-height: 80px;
+  resize: vertical;
+}
+
+/* --- Buttons --- */
+.btn-primary {
+  width: 100%;
+  padding: 0.75rem 1rem;
+  background-color: #2563eb; /* blue-600 */
+  color: #ffffff;
+  border: none;
+  border-radius: 9999px;
+  font-weight: 600;
+  font-size: 0.95rem;
+  cursor: pointer;
+}
+
+.btn-primary:disabled {
+  opacity: 0.7;
+  cursor: default;
+}
+
+.btn-secondary {
+  width: 100%;
+  padding: 0.75rem 1rem;
+  background-color: #eef2ff;
+  color: #1d4ed8;
+  border: none;
+  border-radius: 9999px;
+  font-weight: 500;
+  font-size: 0.9rem;
+  cursor: pointer;
+}
+
+.btn-link {
+  border: none;
+  background: none;
+  color: #2563eb;
+  cursor: pointer;
+  font-size: 0.85rem;
+  padding: 0;
+}
+
+/* --- Small layout helpers for home/applications/profile --- */
+.nav-top {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.5rem;
+  margin-bottom: 1.5rem;
+}
+
+.nav-chip {
+  padding: 0.4rem 0.9rem;
+  border-radius: 9999px;
+  border: 1px solid #d1d5db;
+  background-color: #f9fafb;
+  cursor: pointer;
+  font-size: 0.85rem;
+}
+
+.nav-chip--primary {
+  background-color: #2563eb;
+  color: #ffffff;
+  border: none;
+}
+
+.jobs-container {
+  border: 1px solid #e5e7eb;
+  border-radius: 0.75rem;
+  padding: 0.75rem;
+  background-color: #f9fafb;
+  max-height: 260px;
+  overflow-y: auto;
+}
+
+.job-card {
+  background-color: #ffffff;
+  border-radius: 0.5rem;
+  padding: 0.6rem 0.75rem;
+  margin-bottom: 0.5rem;
+  border: 1px solid #e5e7eb;
+}
+
+.pagination {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 0.4rem;
+  margin-top: 0.9rem;
+}
+
+.pagination button {
+  padding: 0.2rem 0.6rem;
+  border-radius: 0.4rem;
+  border: 1px solid #d1d5db;
+  background-color: #ffffff;
+  color: #111827;
+  cursor: pointer;
+  font-size: 0.8rem;
+}
+
+.pagination button.is-active {
+  background-color: #2563eb;
+  color: #ffffff;
+}
+
+.section-box {
+  border: 1px solid #e5e7eb;
+  border-radius: 0.75rem;
+  padding: 1rem 1.25rem;
+  margin-bottom: 1rem;
+  background-color: #f9fafb;
 }

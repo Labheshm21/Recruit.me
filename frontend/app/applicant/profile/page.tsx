@@ -1,63 +1,93 @@
 "use client";
 
-import { useEffect, useState, FormEvent } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 
 type Profile = {
-  email: string;
   firstName: string;
   lastName: string;
+  email: string;
   phone: string;
   skills: string;
   experience: string;
 };
 
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL;
+
+/**
+ * Handles both:
+ * 1) Lambda proxy: { statusCode, headers, body: '{"profile":{...}}' }
+ * 2) Normal JSON:  { profile: {...} }
+ */
 async function parseApiResponse(res: Response) {
   const raw = await res.json().catch(() => ({} as any));
 
-  if (raw && typeof raw.statusCode === "undefined") {
+  if (typeof raw.statusCode === "number" && raw.body !== undefined) {
+    let inner: any = raw.body;
+    if (typeof inner === "string") {
+      try {
+        inner = JSON.parse(inner);
+      } catch {
+        inner = {};
+      }
+    }
+    return { statusCode: raw.statusCode, payload: inner };
+  }
+
+  return { statusCode: res.status, payload: raw };
+}
+
+/** Normalizes whatever the Lambda returns into our Profile shape */
+function normalizeProfile(payload: any, fallbackEmail: string): Profile {
+  // Some common patterns:
+  // { profile: {...} }, { userProfile: {...} }, { data: {...} }, or payload itself
+  const src =
+    payload?.profile ??
+    payload?.userProfile ??
+    payload?.data ??
+    payload;
+
+  if (!src || typeof src !== "object") {
     return {
-      httpStatus: res.status,
-      statusCode: res.status,
-      payload: raw,
+      firstName: "",
+      lastName: "",
+      email: fallbackEmail,
+      phone: "",
+      skills: "",
+      experience: "",
     };
   }
 
-  let inner: any = raw;
-  if (raw && typeof raw.body === "string") {
-    try {
-      inner = JSON.parse(raw.body);
-    } catch {
-      inner = {};
-    }
-  }
-
   return {
-    httpStatus: res.status,
-    statusCode: typeof raw.statusCode === "number" ? raw.statusCode : res.status,
-    payload: inner,
+    firstName: src.firstName ?? src.first_name ?? "",
+    lastName: src.lastName ?? src.last_name ?? "",
+    email: src.email ?? fallbackEmail,
+    phone: src.phone ?? "",
+    skills: src.skills ?? src.skills_summary ?? "",
+    experience: src.experience ?? src.experience_summary ?? "",
   };
 }
 
-const emptyProfile: Profile = {
-  email: "",
-  firstName: "",
-  lastName: "",
-  phone: "",
-  skills: "",
-  experience: "",
-};
-
-export default function ApplicantProfile() {
+export default function ProfilePage() {
   const router = useRouter();
-  const [profile, setProfile] = useState<Profile>(emptyProfile);
-  const [originalProfile, setOriginalProfile] = useState<Profile>(emptyProfile);
+
+  const [email, setEmail] = useState<string | null>(null);
+  const [profile, setProfile] = useState<Profile>({
+    firstName: "",
+    lastName: "",
+    email: "",
+    phone: "",
+    skills: "",
+    experience: "",
+  });
+
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
-  const [editMode, setEditMode] = useState(false);
+  const [isEditing, setIsEditing] = useState(false);
 
+  // Load email from localStorage and fetch profile
   useEffect(() => {
     if (typeof window === "undefined") return;
     const storedEmail = localStorage.getItem("email");
@@ -65,22 +95,21 @@ export default function ApplicantProfile() {
       router.push("/applicant/login");
       return;
     }
-    loadProfile(storedEmail);
+    setEmail(storedEmail);
+    void loadProfile(storedEmail);
   }, [router]);
 
-  const loadProfile = async (email: string) => {
+  const loadProfile = async (userEmail: string) => {
     setLoading(true);
     setError(null);
     setMessage(null);
+
     try {
-      const res = await fetch(
-        `${process.env.NEXT_PUBLIC_API_BASE_URL}/applicants/profile/get`,
-        {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ email }),
-        }
-      );
+      const res = await fetch(`${API_BASE_URL}/applicants/profile/get`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email: userEmail }),
+      });
 
       const { statusCode, payload } = await parseApiResponse(res);
 
@@ -90,171 +119,439 @@ export default function ApplicantProfile() {
         return;
       }
 
-      const data: Profile = {
-        email: payload.email || email,
-        firstName: payload.firstName || "",
-        lastName: payload.lastName || "",
-        phone: payload.phone || "",
-        skills: payload.skills || "",
-        experience: payload.experience || "",
-      };
+      const normalized = normalizeProfile(payload, userEmail);
 
-      setProfile(data);
-      setOriginalProfile(data);
+      // If backend truly returned nothing, keep email & show message
+      if (
+        !normalized.firstName &&
+        !normalized.lastName &&
+        !normalized.phone &&
+        !normalized.skills &&
+        !normalized.experience
+      ) {
+        setMessage(
+          "No profile information found yet. Use Edit Profile to add your details."
+        );
+      }
+
+      setProfile(normalized);
     } catch (err) {
-      console.error(err);
+      console.error("loadProfile error:", err);
       setError("Network error: could not reach the server.");
     } finally {
       setLoading(false);
     }
   };
 
-  const handleSave = async (e: FormEvent) => {
-    e.preventDefault();
+  const handleSave = async () => {
+    if (!email) return;
+
     setSaving(true);
     setError(null);
     setMessage(null);
 
     try {
-      const res = await fetch(
-        `${process.env.NEXT_PUBLIC_API_BASE_URL}/applicants/profile/update`,
-        {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(profile),
-        }
-      );
+      // Send BOTH camelCase and snake_case keys so we don't depend
+      // on one specific Lambda implementation.
+      const body = {
+        email,
+        firstName: profile.firstName,
+        lastName: profile.lastName,
+        phone: profile.phone,
+        skills: profile.skills,
+        experience: profile.experience,
+
+        // snake_case fallbacks for older Lambda code
+        first_name: profile.firstName,
+        last_name: profile.lastName,
+        skills_summary: profile.skills,
+        experience_summary: profile.experience,
+      };
+
+      const res = await fetch(`${API_BASE_URL}/applicants/profile/update`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      });
 
       const { statusCode, payload } = await parseApiResponse(res);
 
       if (statusCode >= 400) {
-        setError(payload?.message || "Failed to update profile.");
+        setError(payload?.message || "Failed to save profile.");
         setSaving(false);
         return;
       }
 
       setMessage(payload?.message || "Profile updated successfully.");
-      setOriginalProfile(profile);
-      setEditMode(false);
+      setIsEditing(false);
+
+      // Re-fetch from DB so preview always shows persisted data
+      await loadProfile(email);
     } catch (err) {
-      console.error(err);
-      setError("Network error: could not reach the server.");
+      console.error("saveProfile error:", err);
+      setError("Network error: could not save profile.");
     } finally {
       setSaving(false);
     }
   };
 
-  const handleCancel = () => {
-    setProfile(originalProfile);
-    setEditMode(false);
-    setError(null);
-    setMessage(null);
-  };
-
-  const handleChange = (field: keyof Profile, value: string) => {
-    setProfile(prev => ({ ...prev, [field]: value }));
-  };
-
-  if (loading) {
-    return <div style={{ padding: "2rem" }}>Loading profile...</div>;
-  }
+  const handleChange =
+    (field: keyof Profile) =>
+    (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
+      setProfile((prev) => ({ ...prev, [field]: e.target.value }));
+    };
 
   return (
-    <div style={{ padding: "1rem", background: "#e0e0e0", minHeight: "100vh" }}>
-      <button onClick={() => router.push("/applicant/home")}>← Back to Home</button>
+    <div
+      style={{
+        minHeight: "100vh",
+        backgroundColor: "#f3f4f6",
+        padding: "1.5rem",
+      }}
+    >
+      <div
+        style={{
+          maxWidth: "960px",
+          margin: "0 auto 0.75rem",
+          display: "flex",
+          justifyContent: "space-between",
+          alignItems: "center",
+        }}
+      >
+        <button
+          onClick={() => router.push("/applicant/home")}
+          style={{
+            border: "none",
+            background: "none",
+            color: "#2563eb",
+            cursor: "pointer",
+            fontSize: "0.9rem",
+          }}
+        >
+          ← Back to Home
+        </button>
+      </div>
 
-      <div style={{ maxWidth: 600, margin: "1rem auto", background: "#f2f2f2", padding: "1rem", border: "1px solid #aaa" }}>
-        <h2 style={{ textAlign: "center" }}>PROFILE</h2>
+      <div
+        style={{
+          maxWidth: "960px",
+          margin: "0 auto",
+          backgroundColor: "#ffffff",
+          borderRadius: "24px",
+          boxShadow: "0 18px 40px rgba(15,23,42,0.15)",
+          padding: "2.5rem 3rem",
+        }}
+      >
+        <h1
+          style={{
+            fontSize: "2rem",
+            fontWeight: 700,
+            marginBottom: "0.5rem",
+          }}
+        >
+          Profile
+        </h1>
+        <p
+          style={{
+            color: "#6b7280",
+            fontSize: "1rem",
+            marginBottom: "2rem",
+          }}
+        >
+          Review your details. Click &quot;Edit Profile&quot; to make changes.
+        </p>
 
-        {/* Basic Information */}
-        <section style={{ marginTop: "1rem", border: "1px solid #aaa", padding: "0.8rem", background: "#fff" }}>
-          <h3 style={{ marginTop: 0 }}>Basic Information</h3>
-          <div style={{ marginBottom: "0.5rem" }}>
-            <label>First Name:</label>
-            <br />
-            <input
-              type="text"
-              value={profile.firstName}
-              disabled={!editMode}
-              onChange={e => handleChange("firstName", e.target.value)}
-              style={{ width: "100%", padding: "0.4rem" }}
-            />
-          </div>
-          <div style={{ marginBottom: "0.5rem" }}>
-            <label>Last Name:</label>
-            <br />
-            <input
-              type="text"
-              value={profile.lastName}
-              disabled={!editMode}
-              onChange={e => handleChange("lastName", e.target.value)}
-              style={{ width: "100%", padding: "0.4rem" }}
-            />
-          </div>
-          <div style={{ marginBottom: "0.5rem" }}>
-            <label>Email:</label>
-            <br />
-            <input
-              type="email"
-              value={profile.email}
-              disabled
-              style={{ width: "100%", padding: "0.4rem", background: "#ddd" }}
-            />
-          </div>
-          <div style={{ marginBottom: "0.5rem" }}>
-            <label>Phone:</label>
-            <br />
-            <input
-              type="text"
-              value={profile.phone}
-              disabled={!editMode}
-              onChange={e => handleChange("phone", e.target.value)}
-              style={{ width: "100%", padding: "0.4rem" }}
-            />
-          </div>
-        </section>
+        {loading ? (
+          <p>Loading profile…</p>
+        ) : (
+          <>
+            {/* Basic Information */}
+            <div
+              style={{
+                borderRadius: "18px",
+                border: "1px solid #e5e7eb",
+                padding: "1.5rem",
+                marginBottom: "1.25rem",
+                backgroundColor: "#f9fafb",
+              }}
+            >
+              <h2
+                style={{
+                  fontSize: "0.95rem",
+                  fontWeight: 600,
+                  marginBottom: "0.75rem",
+                }}
+              >
+                Basic Information
+              </h2>
 
-        {/* Skills and Expertise */}
-        <section style={{ marginTop: "1rem", border: "1px solid #aaa", padding: "0.8rem", background: "#fff" }}>
-          <h3 style={{ marginTop: 0 }}>Skills and Expertise</h3>
-          <div style={{ marginBottom: "0.5rem" }}>
-            <label>Your Skills:</label>
-            <br />
-            <textarea
-              value={profile.skills}
-              disabled={!editMode}
-              onChange={e => handleChange("skills", e.target.value)}
-              style={{ width: "100%", padding: "0.4rem", minHeight: "60px" }}
-            />
-          </div>
-          <div style={{ marginBottom: "0.5rem" }}>
-            <label>Experience:</label>
-            <br />
-            <textarea
-              value={profile.experience}
-              disabled={!editMode}
-              onChange={e => handleChange("experience", e.target.value)}
-              style={{ width: "100%", padding: "0.4rem", minHeight: "60px" }}
-            />
-          </div>
-        </section>
+              <div
+                style={{
+                  display: "grid",
+                  gap: "0.75rem",
+                  gridTemplateColumns: "1fr 1fr",
+                }}
+              >
+                <div>
+                  <label
+                    style={{
+                      display: "block",
+                      fontSize: "0.9rem",
+                      marginBottom: "0.25rem",
+                      fontWeight: 500,
+                    }}
+                  >
+                    First Name
+                  </label>
+                  <input
+                    className="input"
+                    style={{
+                      width: "100%",
+                      padding: "0.7rem 0.9rem",
+                      borderRadius: "0.75rem",
+                      border: "1px solid #d1d5db",
+                    }}
+                    value={profile.firstName}
+                    onChange={handleChange("firstName")}
+                    readOnly={!isEditing}
+                  />
+                </div>
+                <div>
+                  <label
+                    style={{
+                      display: "block",
+                      fontSize: "0.9rem",
+                      marginBottom: "0.25rem",
+                      fontWeight: 500,
+                    }}
+                  >
+                    Last Name
+                  </label>
+                  <input
+                    style={{
+                      width: "100%",
+                      padding: "0.7rem 0.9rem",
+                      borderRadius: "0.75rem",
+                      border: "1px solid #d1d5db",
+                    }}
+                    value={profile.lastName}
+                    onChange={handleChange("lastName")}
+                    readOnly={!isEditing}
+                  />
+                </div>
+              </div>
 
-        {error && <p style={{ color: "red", marginTop: "0.5rem" }}>{error}</p>}
-        {message && <p style={{ color: "green", marginTop: "0.5rem" }}>{message}</p>}
+              <div style={{ marginTop: "0.75rem" }}>
+                <label
+                  style={{
+                    display: "block",
+                    fontSize: "0.9rem",
+                    marginBottom: "0.25rem",
+                    fontWeight: 500,
+                  }}
+                >
+                  Email
+                </label>
+                <input
+                  style={{
+                    width: "100%",
+                    padding: "0.7rem 0.9rem",
+                    borderRadius: "0.75rem",
+                    border: "1px solid #d1d5db",
+                    backgroundColor: "#e5e7eb",
+                  }}
+                  value={profile.email}
+                  readOnly
+                />
+              </div>
 
-        {/* Buttons */}
-        <div style={{ marginTop: "1rem", display: "flex", gap: "0.5rem", justifyContent: "flex-end" }}>
-          {!editMode ? (
-            <button onClick={() => setEditMode(true)}>Edit Profile</button>
-          ) : (
-            <>
-              <button onClick={handleCancel} disabled={saving}>Cancel</button>
-              <button onClick={handleSave} disabled={saving}>
-                {saving ? "Saving..." : "Save"}
-              </button>
-            </>
-          )}
-        </div>
+              <div style={{ marginTop: "0.75rem" }}>
+                <label
+                  style={{
+                    display: "block",
+                    fontSize: "0.9rem",
+                    marginBottom: "0.25rem",
+                    fontWeight: 500,
+                  }}
+                >
+                  Phone
+                </label>
+                <input
+                  style={{
+                    width: "100%",
+                    padding: "0.7rem 0.9rem",
+                    borderRadius: "0.75rem",
+                    border: "1px solid #d1d5db",
+                  }}
+                  value={profile.phone}
+                  onChange={handleChange("phone")}
+                  readOnly={!isEditing}
+                />
+              </div>
+            </div>
+
+            {/* Skills and Expertise */}
+            <div
+              style={{
+                borderRadius: "18px",
+                border: "1px solid #e5e7eb",
+                padding: "1.5rem",
+                marginBottom: "1.25rem",
+                backgroundColor: "#f9fafb",
+              }}
+            >
+              <h2
+                style={{
+                  fontSize: "0.95rem",
+                  fontWeight: 600,
+                  marginBottom: "0.75rem",
+                }}
+              >
+                Skills and Expertise
+              </h2>
+
+              <div style={{ marginBottom: "0.75rem" }}>
+                <label
+                  style={{
+                    display: "block",
+                    fontSize: "0.9rem",
+                    marginBottom: "0.25rem",
+                    fontWeight: 500,
+                  }}
+                >
+                  Your Skills
+                </label>
+                <textarea
+                  style={{
+                    width: "100%",
+                    minHeight: "90px",
+                    padding: "0.7rem 0.9rem",
+                    borderRadius: "0.75rem",
+                    border: "1px solid #d1d5db",
+                    resize: "vertical",
+                  }}
+                  value={profile.skills}
+                  onChange={handleChange("skills")}
+                  readOnly={!isEditing}
+                />
+              </div>
+
+              <div>
+                <label
+                  style={{
+                    display: "block",
+                    fontSize: "0.9rem",
+                    marginBottom: "0.25rem",
+                    fontWeight: 500,
+                  }}
+                >
+                  Experience
+                </label>
+                <textarea
+                  style={{
+                    width: "100%",
+                    minHeight: "90px",
+                    padding: "0.7rem 0.9rem",
+                    borderRadius: "0.75rem",
+                    border: "1px solid #d1d5db",
+                    resize: "vertical",
+                  }}
+                  value={profile.experience}
+                  onChange={handleChange("experience")}
+                  readOnly={!isEditing}
+                />
+              </div>
+            </div>
+
+            {error && (
+              <p
+                style={{
+                  color: "#b91c1c",
+                  fontSize: "0.9rem",
+                  marginBottom: "0.75rem",
+                }}
+              >
+                {error}
+              </p>
+            )}
+            {message && (
+              <p
+                style={{
+                  color: "#166534",
+                  fontSize: "0.9rem",
+                  marginBottom: "0.75rem",
+                }}
+              >
+                {message}
+              </p>
+            )}
+
+            <div
+              style={{
+                display: "flex",
+                justifyContent: "flex-end",
+                gap: "0.5rem",
+              }}
+            >
+              {isEditing ? (
+                <>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setIsEditing(false);
+                      if (email) void loadProfile(email);
+                    }}
+                    style={{
+                      padding: "0.7rem 1.1rem",
+                      borderRadius: "9999px",
+                      border: "none",
+                      backgroundColor: "#e5e7eb",
+                      color: "#374151",
+                      cursor: "pointer",
+                      fontSize: "0.9rem",
+                    }}
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleSave}
+                    disabled={saving}
+                    style={{
+                      padding: "0.7rem 1.4rem",
+                      borderRadius: "9999px",
+                      border: "none",
+                      backgroundColor: "#2563eb",
+                      color: "#ffffff",
+                      cursor: saving ? "default" : "pointer",
+                      fontWeight: 600,
+                      fontSize: "0.95rem",
+                    }}
+                  >
+                    {saving ? "Saving…" : "Save Profile"}
+                  </button>
+                </>
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => setIsEditing(true)}
+                  style={{
+                    padding: "0.7rem 1.4rem",
+                    borderRadius: "9999px",
+                    border: "none",
+                    backgroundColor: "#2563eb",
+                    color: "#ffffff",
+                    cursor: "pointer",
+                    fontWeight: 600,
+                    fontSize: "0.95rem",
+                  }}
+                >
+                  Edit Profile
+                </button>
+              )}
+            </div>
+          </>
+        )}
       </div>
     </div>
   );
