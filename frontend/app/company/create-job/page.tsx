@@ -10,40 +10,64 @@ const API_URL =
 export default function CreateJobPage() {
   const router = useRouter();
 
-  // STATE FIELDS
   const [jobName, setJobName] = useState("");
   const [jobDescription, setJobDescription] = useState("");
   const [jobType, setJobType] = useState("Full-Time");
   const [workMode, setWorkMode] = useState("Onsite");
   const [jobStatus, setJobStatus] = useState("Active");
   const [skills, setSkills] = useState("");
-  const [experience, setExperience] = useState("Entry Level");
   const [salary, setSalary] = useState("");
   const [location, setLocation] = useState("");
 
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState("");
 
-  // FORM SUBMIT
-  const handleSubmit = async (e: any) => {
+  function mapJobType(type) {
+    return type === "Full-Time"
+      ? "fulltime"
+      : type === "Part-Time"
+      ? "part-time"
+      : type === "Internship"
+      ? "internship"
+      : "contract";
+  }
+
+  function mapWorkMode(mode) {
+    return mode === "Onsite"
+      ? "onsite"
+      : mode === "Remote"
+      ? "remote"
+      : "hybrid";
+  }
+
+  function mapStatus(status) {
+    return status === "Active" ? "active" : "inactive";
+  }
+
+  const handleSubmit = async (e) => {
     e.preventDefault();
     setMessage("");
 
-    if (!jobName.trim()) {
-      setMessage("Job title is required.");
+    const company_id =
+      typeof window !== "undefined"
+        ? localStorage.getItem("company_id")
+        : null;
+
+    if (!company_id) {
+      setMessage("Company ID missing. Please log in again.");
       return;
     }
 
     const payload = {
+      company_id,
       job_name: jobName,
       job_description: jobDescription,
-      job_type: jobType,
-      work_mode: workMode,
-      job_status: jobStatus,
       skills,
-      experience,
       salary,
-      location
+      location,
+      job_type: mapJobType(jobType),
+      work_mode: mapWorkMode(workMode),
+      job_status: mapStatus(jobStatus)
     };
 
     setLoading(true);
@@ -65,14 +89,12 @@ export default function CreateJobPage() {
       } else {
         setMessage(data.error || "Failed to create job");
       }
-    } catch (err: any) {
+    } catch (err) {
       setMessage("Network error: " + err.message);
     }
 
     setLoading(false);
   };
-
-  // ---------------------- UI ----------------------
 
   return (
     <div
@@ -88,16 +110,11 @@ export default function CreateJobPage() {
       <h1 style={{ marginBottom: "20px" }}>Create Job Posting</h1>
 
       <form onSubmit={handleSubmit}>
-
-        {/* JOB DETAILS */}
-        <h3 style={{ marginBottom: 10 }}>Job Details</h3>
-
         <label>Job Title *</label>
         <input
           type="text"
           value={jobName}
           onChange={(e) => setJobName(e.target.value)}
-          placeholder="e.g. Software Engineer"
           style={inputStyle}
         />
 
@@ -105,12 +122,15 @@ export default function CreateJobPage() {
         <textarea
           value={jobDescription}
           onChange={(e) => setJobDescription(e.target.value)}
-          placeholder="Describe the role..."
           style={{ ...inputStyle, height: 100 }}
         />
 
         <label>Job Type</label>
-        <select value={jobType} onChange={(e) => setJobType(e.target.value)} style={inputStyle}>
+        <select
+          value={jobType}
+          onChange={(e) => setJobType(e.target.value)}
+          style={inputStyle}
+        >
           <option>Full-Time</option>
           <option>Part-Time</option>
           <option>Internship</option>
@@ -118,53 +138,39 @@ export default function CreateJobPage() {
         </select>
 
         <label>Work Mode</label>
-        <select value={workMode} onChange={(e) => setWorkMode(e.target.value)} style={inputStyle}>
+        <select
+          value={workMode}
+          onChange={(e) => setWorkMode(e.target.value)}
+          style={inputStyle}
+        >
           <option>Onsite</option>
           <option>Remote</option>
           <option>Hybrid</option>
         </select>
 
-        <label>Job Status</label>
-        <select value={jobStatus} onChange={(e) => setJobStatus(e.target.value)} style={inputStyle}>
+        <label>Status</label>
+        <select
+          value={jobStatus}
+          onChange={(e) => setJobStatus(e.target.value)}
+          style={inputStyle}
+        >
           <option>Active</option>
           <option>Inactive</option>
         </select>
 
-
-        {/* REQUIREMENTS */}
-        <h3 style={{ marginTop: 30, marginBottom: 10 }}>Requirements</h3>
-
-        <label>Skills (comma separated)</label>
+        <label>Skills</label>
         <input
           type="text"
           value={skills}
           onChange={(e) => setSkills(e.target.value)}
-          placeholder="e.g. React, Node.js, SQL"
           style={inputStyle}
         />
-
-        <label>Experience Level</label>
-        <select
-          value={experience}
-          onChange={(e) => setExperience(e.target.value)}
-          style={inputStyle}
-        >
-          <option>Entry Level</option>
-          <option>Junior</option>
-          <option>Mid Level</option>
-          <option>Senior</option>
-        </select>
-
-
-        {/* COMPENSATION */}
-        <h3 style={{ marginTop: 30, marginBottom: 10 }}>Compensation</h3>
 
         <label>Salary</label>
         <input
           type="text"
           value={salary}
           onChange={(e) => setSalary(e.target.value)}
-          placeholder="e.g. $80k - $120k"
           style={inputStyle}
         />
 
@@ -173,11 +179,9 @@ export default function CreateJobPage() {
           type="text"
           value={location}
           onChange={(e) => setLocation(e.target.value)}
-          placeholder="City, Country"
           style={inputStyle}
         />
 
-        {/* SUBMIT BUTTON */}
         <button
           type="submit"
           disabled={loading}
@@ -202,9 +206,7 @@ export default function CreateJobPage() {
   );
 }
 
-
-// ---------- SHARED STYLES ----------
-const inputStyle: React.CSSProperties = {
+const inputStyle = {
   padding: "12px",
   marginBottom: "14px",
   borderRadius: "8px",
@@ -213,7 +215,7 @@ const inputStyle: React.CSSProperties = {
   fontSize: "15px"
 };
 
-const submitButtonStyle = (loading: boolean): React.CSSProperties => ({
+const submitButtonStyle = (loading) => ({
   width: "100%",
   padding: "12px",
   background: loading ? "#9CA3AF" : "#2563EB",

@@ -14,7 +14,7 @@ export default function CompanyLogin() {
   const [password, setPassword] = useState("");
   const [message, setMessage] = useState("");
 
-  async function handleLogin(e: any) {
+  async function handleLogin(e) {
     e.preventDefault();
     setMessage("");
 
@@ -22,7 +22,7 @@ export default function CompanyLogin() {
       const res = await fetch(LOGIN_URL, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email, password }),
+        body: JSON.stringify({ email, password })
       });
 
       const data = await res.json();
@@ -32,13 +32,16 @@ export default function CompanyLogin() {
         return;
       }
 
+      // SAVE ALL COMPANY INFO
       if (typeof window !== "undefined") {
-        localStorage.setItem("company_email", email);
+        localStorage.setItem("company_id", data.user.id);
+        localStorage.setItem("company_email", data.user.email);
+        localStorage.setItem("company_name", data.user.companyName);
       }
 
       setMessage("Login successful! Redirecting...");
       setTimeout(() => router.push("/company/dashboard"), 1500);
-    } catch (err: any) {
+    } catch (err) {
       setMessage("Network error: " + err.message);
     }
   }
@@ -51,7 +54,7 @@ export default function CompanyLogin() {
         alignItems: "center",
         justifyContent: "center",
         background: "#F3F4F6",
-        padding: "20px",
+        padding: "20px"
       }}
     >
       <div
@@ -61,7 +64,7 @@ export default function CompanyLogin() {
           background: "white",
           padding: "40px",
           borderRadius: "20px",
-          boxShadow: "0 20px 40px rgba(0,0,0,0.1)",
+          boxShadow: "0 20px 40px rgba(0,0,0,0.1)"
         }}
       >
         <h1 style={{ fontSize: "32px", fontWeight: 700 }}>Company Login</h1>
@@ -107,7 +110,7 @@ export default function CompanyLogin() {
             borderRadius: "40px",
             color: "#2563EB",
             fontWeight: "600",
-            textDecoration: "none",
+            textDecoration: "none"
           }}
         >
           Create a Company Account
@@ -117,16 +120,16 @@ export default function CompanyLogin() {
   );
 }
 
-const input: React.CSSProperties = {
+const input = {
   width: "100%",
   padding: "14px",
   borderRadius: "40px",
   border: "1px solid #E5E7EB",
   marginBottom: "20px",
-  background: "#F9FAFB",
+  background: "#F9FAFB"
 };
 
-const button: React.CSSProperties = {
+const button = {
   width: "100%",
   padding: "14px",
   background: "#2563EB",
@@ -135,5 +138,5 @@ const button: React.CSSProperties = {
   border: "none",
   marginTop: "10px",
   fontWeight: "600",
-  cursor: "pointer",
+  cursor: "pointer"
 };
