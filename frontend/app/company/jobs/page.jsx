@@ -24,11 +24,11 @@ export default function CompanyJobsPage() {
       const res = await fetch(GET_JOBS_URL, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ company_id: Number(companyId) })
+        body: JSON.stringify({ company_id: Number(companyId) }),
       });
 
       const data = await res.json();
-      console.log("Jobs Response:", data);
+      console.log("JOBS RAW:", data);
 
       setJobs(data.jobs || []);
     } catch (err) {
@@ -48,14 +48,14 @@ export default function CompanyJobsPage() {
   }, [companyId]);
 
   // ---------------- ACTIVATE / DEACTIVATE ----------------
-  async function updateStatus(job_id, type) {
+  async function updateStatus(jobId, type) {
     const url = type === "activate" ? ACTIVATE_URL : DEACTIVATE_URL;
 
     try {
       const res = await fetch(url, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ job_id })
+        body: JSON.stringify({ job_id: jobId }),
       });
 
       const result = await res.json();
@@ -91,54 +91,65 @@ export default function CompanyJobsPage() {
             </thead>
 
             <tbody>
-              {jobs.map((job) => (
-                <tr
-                  key={job.id}
-                  className="border-b hover:bg-gray-50 transition"
-                >
-                  <td className="p-4">{job.job_name}</td>
-                  <td className="p-4 capitalize">{job.job_type}</td>
-                  <td className="p-4 capitalize">{job.location}</td>
+              {jobs.map((job) => {
+                const jobId =
+                  job.id || job.job_id || job.JobID || job._id || job.ID;
 
-                  <td className="p-4">
-                    {job.job_status === "active" ? (
-                      <span className="px-3 py-1 text-sm bg-green-100 text-green-700 rounded-full">
-                        Active
-                      </span>
-                    ) : (
-                      <span className="px-3 py-1 text-sm bg-red-100 text-red-700 rounded-full">
-                        Inactive
-                      </span>
-                    )}
-                  </td>
+                return (
+                  <tr key={jobId} className="border-b hover:bg-gray-50 transition">
+                    <td className="p-4">{job.job_name}</td>
+                    <td className="p-4 capitalize">{job.job_type}</td>
+                    <td className="p-4 capitalize">{job.location}</td>
 
-                  <td className="p-4 flex gap-3 justify-center">
-                    
-                 <a
-  href={`/company/jobs/${job.id || job.job_id || job.ID || job.JobID || job._id}/edit`}
-  className="px-4 py-1 bg-blue-600 text-white rounded-lg text-sm hover:bg-blue-700 transition"
->
-  Edit
-</a>
+                    <td className="p-4">
+                      {job.job_status === "active" ? (
+                        <span className="px-3 py-1 text-sm bg-green-100 text-green-700 rounded-full">
+                          Active
+                        </span>
+                      ) : (
+                        <span className="px-3 py-1 text-sm bg-red-100 text-red-700 rounded-full">
+                          Inactive
+                        </span>
+                      )}
+                    </td>
 
-                    {job.job_status === "active" ? (
-                      <button
-                        onClick={() => updateStatus(job.id, "deactivate")}
-                        className="px-4 py-1 bg-red-600 text-white rounded-lg text-sm hover:bg-red-700 transition"
+                    <td className="p-4 flex gap-3 justify-center">
+                      {/* EDIT */}
+                      <a
+                        href={`/company/jobs/${jobId}/edit`}
+                        className="px-4 py-1 bg-blue-600 text-white rounded-lg text-sm hover:bg-blue-700 transition"
                       >
-                        Deactivate
-                      </button>
-                    ) : (
-                      <button
-                        onClick={() => updateStatus(job.id, "activate")}
-                        className="px-4 py-1 bg-green-600 text-white rounded-lg text-sm hover:bg-green-700 transition"
+                        Edit
+                      </a>
+
+                      {/* VIEW APPLICANTS */}
+                      <a
+                        href={`/company/jobs/${jobId}/applicants`}
+                        className="px-3 py-1 bg-purple-600 text-white rounded-lg text-sm hover:bg-purple-700 transition"
                       >
-                        Activate
-                      </button>
-                    )}
-                  </td>
-                </tr>
-              ))}
+                        View Applicants
+                      </a>
+
+                      {/* ACTIVATE / DEACTIVATE */}
+                      {job.job_status === "active" ? (
+                        <button
+                          onClick={() => updateStatus(jobId, "deactivate")}
+                          className="px-4 py-1 bg-red-600 text-white rounded-lg text-sm hover:bg-red-700 transition"
+                        >
+                          Deactivate
+                        </button>
+                      ) : (
+                        <button
+                          onClick={() => updateStatus(jobId, "activate")}
+                          className="px-4 py-1 bg-green-600 text-white rounded-lg text-sm hover:bg-green-700 transition"
+                        >
+                          Activate
+                        </button>
+                      )}
+                    </td>
+                  </tr>
+                );
+              })}
             </tbody>
           </table>
         )}
