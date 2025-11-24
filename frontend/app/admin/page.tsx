@@ -1,6 +1,6 @@
 "use client";
 
-export default function LandingPage() {
+export default function AdminHomePage() {
   return (
     <div
       style={{
@@ -12,65 +12,61 @@ export default function LandingPage() {
         padding: "40px 20px",
       }}
     >
-      {/* HERO SECTION */}
+      {/* HEADER */}
       <h1
         style={{
-          fontSize: "42px",
+          fontSize: "36px",
           fontWeight: 800,
-          marginBottom: "10px",
+          marginBottom: "8px",
           color: "#111827",
           textAlign: "center",
         }}
       >
-        Welcome to Recruit.me
+        Admin Dashboard
       </h1>
 
       <p
         style={{
-          fontSize: "18px",
-          color: "#374151",
-          maxWidth: "700px",
+          fontSize: "16px",
+          color: "#4B5563",
+          maxWidth: "720px",
           textAlign: "center",
-          marginBottom: "40px",
+          marginBottom: "32px",
           lineHeight: 1.6,
         }}
       >
-        A modern hiring and job application platform designed to connect
-        talented individuals with growing companies. Choose your role to
-        continue.
+        Review activity across the platform. Open any report to see detailed
+        metrics on companies, posted jobs, and applicants.
       </p>
 
-      {/* ACTION CARDS */}
+      {/* CARDS */}
       <div
         style={{
           display: "grid",
           gridTemplateColumns: "repeat(auto-fit, minmax(260px, 1fr))",
-          gap: "30px",
+          gap: "24px",
           width: "100%",
           maxWidth: "960px",
         }}
       >
-        {/* COMPANY CARD */}
+        {/* Company Report */}
         <a
-          href="/company/login"
-          style={{
-            textDecoration: "none",
-            color: "inherit",
-          }}
+          href="/admin/companies"
+          style={{ textDecoration: "none", color: "inherit" }}
         >
           <div
             style={{
               background: "#FFFFFF",
-              padding: "30px",
-              borderRadius: "16px",
+              padding: "24px",
+              borderRadius: "18px",
               border: "1px solid #E5E7EB",
               cursor: "pointer",
               transition: "0.2s",
             }}
             onMouseEnter={(e) => {
-              e.currentTarget.style.transform = "translateY(-5px)";
+              e.currentTarget.style.transform = "translateY(-4px)";
               e.currentTarget.style.boxShadow =
-                "0 8px 20px rgba(0,0,0,0.12)";
+                "0 10px 25px rgba(0,0,0,0.10)";
             }}
             onMouseLeave={(e) => {
               e.currentTarget.style.transform = "translateY(0px)";
@@ -79,47 +75,45 @@ export default function LandingPage() {
           >
             <h2
               style={{
-                fontSize: "26px",
+                fontSize: "22px",
                 fontWeight: 700,
                 color: "#2563EB",
+                marginBottom: "6px",
               }}
             >
-              Company
+              Company Report
             </h2>
             <p
               style={{
-                fontSize: "15px",
+                fontSize: "14px",
                 color: "#6B7280",
-                marginTop: "10px",
+                lineHeight: 1.5,
               }}
             >
-              Post jobs, manage applicants, and grow your organization with
-              our easy-to-use company tools.
+              View all registered companies, their status, and basic activity
+              details.
             </p>
           </div>
         </a>
 
-        {/* APPLICANT CARD */}
+        {/* Company Jobs Report */}
         <a
-          href="/applicant/login"
-          style={{
-            textDecoration: "none",
-            color: "inherit",
-          }}
+          href="/admin/company-jobs"
+          style={{ textDecoration: "none", color: "inherit" }}
         >
           <div
             style={{
               background: "#FFFFFF",
-              padding: "30px",
-              borderRadius: "16px",
+              padding: "24px",
+              borderRadius: "18px",
               border: "1px solid #E5E7EB",
               cursor: "pointer",
               transition: "0.2s",
             }}
             onMouseEnter={(e) => {
-              e.currentTarget.style.transform = "translateY(-5px)";
+              e.currentTarget.style.transform = "translateY(-4px)";
               e.currentTarget.style.boxShadow =
-                "0 8px 20px rgba(0,0,0,0.12)";
+                "0 10px 25px rgba(0,0,0,0.10)";
             }}
             onMouseLeave={(e) => {
               e.currentTarget.style.transform = "translateY(0px)";
@@ -128,47 +122,45 @@ export default function LandingPage() {
           >
             <h2
               style={{
-                fontSize: "26px",
+                fontSize: "22px",
                 fontWeight: 700,
                 color: "#10B981",
+                marginBottom: "6px",
               }}
             >
-              Applicant
+              Company Jobs Report
             </h2>
             <p
               style={{
-                fontSize: "15px",
+                fontSize: "14px",
                 color: "#6B7280",
-                marginTop: "10px",
+                lineHeight: 1.5,
               }}
             >
-              Apply for jobs, track your applications, and explore new
-              career opportunities tailored for your skillset.
+              Inspect all jobs posted by companies, including job status and
+              key details.
             </p>
           </div>
         </a>
 
-        {/* ADMIN CARD */}
+        {/* Applicants Report */}
         <a
-          href="/admin"
-          style={{
-            textDecoration: "none",
-            color: "inherit",
-          }}
+          href="/admin/applicants"
+          style={{ textDecoration: "none", color: "inherit" }}
         >
           <div
             style={{
               background: "#FFFFFF",
-              padding: "30px",
-              borderRadius: "16px",
+              padding: "24px",
+              borderRadius: "18px",
               border: "1px solid #E5E7EB",
               cursor: "pointer",
               transition: "0.2s",
             }}
             onMouseEnter={(e) => {
-              e.currentTarget.style.transform = "translateY(-5px)";
+              e.currentTarget.style.transform = "translateY(-4px)";
               e.currentTarget.style.boxShadow =
-                "0 8px 20px rgba(0,0,0,0.12)";
+                "0 10px 25px rgba(0,0,0,0.10)";
             }}
             onMouseLeave={(e) => {
               e.currentTarget.style.transform = "translateY(0px)";
@@ -177,37 +169,45 @@ export default function LandingPage() {
           >
             <h2
               style={{
-                fontSize: "26px",
+                fontSize: "22px",
                 fontWeight: 700,
-                color: "#F97316", // orange accent for admin
+                color: "#F97316",
+                marginBottom: "6px",
               }}
             >
-              Admin
+              Applicants Report
             </h2>
             <p
               style={{
-                fontSize: "15px",
+                fontSize: "14px",
                 color: "#6B7280",
-                marginTop: "10px",
+                lineHeight: 1.5,
               }}
             >
-              View platform-wide reports on companies, posted jobs, and
-              applicants to monitor system activity.
+              Review all applicants in the system and their application
+              activity.
             </p>
           </div>
         </a>
       </div>
 
-      {/* FOOTER */}
-      <p
+      {/* FOOTER LINK BACK */}
+      <button
+        type="button"
+        onClick={() => (window.location.href = "/")}
         style={{
-          marginTop: "60px",
+          marginTop: "40px",
+          padding: "10px 20px",
+          borderRadius: "9999px",
+          border: "1px solid #D1D5DB",
+          background: "#FFFFFF",
           fontSize: "14px",
-          color: "#9CA3AF",
+          color: "#374151",
+          cursor: "pointer",
         }}
       >
-        ©️ {new Date().getFullYear()} Recruit.me — All rights reserved.
-      </p>
+        ← Back to main landing
+      </button>
     </div>
   );
 }
