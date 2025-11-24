@@ -12,88 +12,131 @@ export default function CompanyLogin() {
 
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [message, setMessage] = useState<string | null>(null);
-  const [loading, setLoading] = useState(false);
+  const [message, setMessage] = useState("");
 
-  const handleLogin = async (e: React.FormEvent) => {
+  async function handleLogin(e) {
     e.preventDefault();
-    setMessage(null);
-
-    if (!email || !password) {
-      setMessage("Email and password are required.");
-      return;
-    }
-
-    setLoading(true);
+    setMessage("");
 
     try {
       const res = await fetch(LOGIN_URL, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email, password }),
+        body: JSON.stringify({ email, password })
       });
 
       const data = await res.json();
 
-      if (res.ok) {
-        setMessage("Login successful! Redirecting...");
-
-        // SAVE TOKEN IF YOUR BACKEND RETURNS ONE
-        if (data.token) {
-          localStorage.setItem("companyToken", data.token);
-        }
-
-        localStorage.setItem("companyEmail", email);
-
-        // REDIRECT TO DASHBOARD
-        setTimeout(() => {
-          router.push("/company/dashboard");
-        }, 1200);
-      } else {
-        setMessage(data.error || "Login failed");
+      if (!res.ok) {
+        setMessage(data.error || data.message || "Login failed");
+        return;
       }
-    } catch (err: any) {
-      setMessage("Network error. Please try again.");
-    } finally {
-      setLoading(false);
+
+      // SAVE ALL COMPANY INFO
+      if (typeof window !== "undefined") {
+        localStorage.setItem("company_id", data.user.id);
+        localStorage.setItem("company_email", data.user.email);
+        localStorage.setItem("company_name", data.user.companyName);
+      }
+
+      setMessage("Login successful! Redirecting...");
+      setTimeout(() => router.push("/company/dashboard"), 1500);
+    } catch (err) {
+      setMessage("Network error: " + err.message);
     }
-  };
+  }
 
   return (
-    <div style={{ maxWidth: 350, margin: "5rem auto", padding: 30, background: "#fff", borderRadius: 8 }}>
-      <h2 style={{ textAlign: "center" }}>Company Login</h2>
+    <div
+      style={{
+        minHeight: "100vh",
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        background: "#F3F4F6",
+        padding: "20px"
+      }}
+    >
+      <div
+        style={{
+          width: "100%",
+          maxWidth: "600px",
+          background: "white",
+          padding: "40px",
+          borderRadius: "20px",
+          boxShadow: "0 20px 40px rgba(0,0,0,0.1)"
+        }}
+      >
+        <h1 style={{ fontSize: "32px", fontWeight: 700 }}>Company Login</h1>
+        <p style={{ marginBottom: 30, color: "#6B7280" }}>
+          Sign in with your company credentials.
+        </p>
 
-      <form onSubmit={handleLogin}>
-        <input
-          type="email"
-          placeholder="Email"
-          autoComplete="email"
-          value={email}
-          onChange={(e) => setEmail(e.target.value)}
-          style={{ width: "100%", marginBottom: 15, padding: 10 }}
-        />
+        <form onSubmit={handleLogin}>
+          <label>Email</label>
+          <input
+            type="email"
+            style={input}
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            required
+          />
 
-        <input
-          type="password"
-          placeholder="Password"
-          autoComplete="current-password"
-          value={password}
-          onChange={(e) => setPassword(e.target.value)}
-          style={{ width: "100%", marginBottom: 15, padding: 10 }}
-        />
+          <label>Password</label>
+          <input
+            type="password"
+            style={input}
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            required
+          />
 
-        <button
-          type="submit"
-          disabled={loading}
-          style={{ width: "100%", padding: 10 }}
+          <button type="submit" style={button}>
+            Login
+          </button>
+        </form>
+
+        <p style={{ color: "red", marginTop: 20 }}>{message}</p>
+
+        <hr style={{ margin: "30px 0" }} />
+
+        <a
+          href="/company/signup"
+          style={{
+            display: "block",
+            textAlign: "center",
+            padding: "14px",
+            background: "#EEF2FF",
+            borderRadius: "40px",
+            color: "#2563EB",
+            fontWeight: "600",
+            textDecoration: "none"
+          }}
         >
-          {loading ? "Logging in..." : "Login"}
-        </button>
-
-        {message && (
-          <p style={{ marginTop: 15, textAlign: "center", color: "red" }}>{message}</p>
-        )}
-      </form>
+          Create a Company Account
+        </a>
+      </div>
     </div>
   );
 }
+
+const input = {
+  width: "100%",
+  padding: "14px",
+  borderRadius: "40px",
+  border: "1px solid #E5E7EB",
+  marginBottom: "20px",
+  background: "#F9FAFB"
+};
+
+const button = {
+  width: "100%",
+  padding: "14px",
+  background: "#2563EB",
+  color: "white",
+  borderRadius: "40px",
+  border: "none",
+  marginTop: "10px",
+  fontWeight: "600",
+  cursor: "pointer"
+};
