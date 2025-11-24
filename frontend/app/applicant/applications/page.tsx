@@ -45,6 +45,7 @@ export default function MyApplicationsPage() {
   const [error, setError] = useState("");
   const [message, setMessage] = useState("");
 
+  // Load email from localStorage and then load applications
   useEffect(() => {
     if (typeof window === "undefined") return;
     const storedEmail = localStorage.getItem("email");
@@ -145,7 +146,13 @@ export default function MyApplicationsPage() {
         ) : applications.length === 0 ? (
           <p>You haven&apos;t applied to any jobs yet.</p>
         ) : (
-          <div style={{ display: "flex", flexDirection: "column", gap: "0.6rem" }}>
+          <div
+            style={{
+              display: "flex",
+              flexDirection: "column",
+              gap: "0.6rem",
+            }}
+          >
             {applications.map((app) => (
               <div
                 key={app.jobId}
@@ -169,7 +176,10 @@ export default function MyApplicationsPage() {
                     </div>
                     {app.appliedAt && (
                       <div
-                        style={{ fontSize: "0.75rem", color: "#9ca3af" }}
+                        style={{
+                          fontSize: "0.75rem",
+                          color: "#9ca3af",
+                        }}
                       >
                         Applied at:{" "}
                         {new Date(app.appliedAt).toLocaleString()}
@@ -186,7 +196,12 @@ export default function MyApplicationsPage() {
                   </button>
                 </div>
 
-                <div style={{ fontSize: "0.8rem", color: "#6b7280" }}>
+                <div
+                  style={{
+                    fontSize: "0.8rem",
+                    color: "#6b7280",
+                  }}
+                >
                   Skills: {app.skills}
                 </div>
                 <div

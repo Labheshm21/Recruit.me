@@ -14,6 +14,7 @@ type Job = {
   description: string;
 };
 
+// Helper to normalize Lambda proxy vs normal JSON responses
 function parseLambdaResponse(outer: any, res: Response) {
   const statusCode =
     typeof outer?.statusCode === "number" ? outer.statusCode : res.status;
@@ -50,6 +51,7 @@ export default function ApplicantHomePage() {
   const [appliedJobIds, setAppliedJobIds] = useState<number[]>([]);
   const [actionMessage, setActionMessage] = useState("");
 
+  // Check login and load email from localStorage
   useEffect(() => {
     if (typeof window === "undefined") return;
     const storedEmail = localStorage.getItem("email");
@@ -61,6 +63,7 @@ export default function ApplicantHomePage() {
     setEmailChecked(true);
   }, [router]);
 
+  // Once we know the email, load jobs and applied jobs
   useEffect(() => {
     if (!emailChecked) return;
     fetchJobs(1, searchTerm);
@@ -70,18 +73,17 @@ export default function ApplicantHomePage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [emailChecked, email]);
 
+  // Load jobs from Lambda (now backed by companyjobs)
   const fetchJobs = async (page: number, term: string) => {
     setLoading(true);
     setError("");
+
     try {
-      const res = await fetch(
-        `${API_BASE_URL}/applicants/jobs/search`,
-        {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ searchTerm: term, page }),
-        }
-      );
+      const res = await fetch(`${API_BASE_URL}/applicants/jobs/search`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ searchTerm: term, page }),
+      });
 
       const outer = await res.json().catch(() => ({} as any));
       const { statusCode, payload } = parseLambdaResponse(outer, res);
@@ -104,16 +106,14 @@ export default function ApplicantHomePage() {
     }
   };
 
+  // Load list of jobs the user has already applied to
   const fetchAppliedJobs = async (userEmail: string) => {
     try {
-      const res = await fetch(
-        `${API_BASE_URL}/applicants/jobs/applications`,
-        {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ email: userEmail }),
-        }
-      );
+      const res = await fetch(`${API_BASE_URL}/applicants/jobs/applications`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email: userEmail }),
+      });
 
       const outer = await res.json().catch(() => ({} as any));
       const { statusCode, payload } = parseLambdaResponse(outer, res);
@@ -152,20 +152,18 @@ export default function ApplicantHomePage() {
 
   const handleApply = async (jobId: number) => {
     setActionMessage("");
+
     if (!email) {
       router.push("/applicant/login");
       return;
     }
 
     try {
-      const res = await fetch(
-        `${API_BASE_URL}/applicants/jobs/apply`,
-        {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ email, jobId }),
-        }
-      );
+      const res = await fetch(`${API_BASE_URL}/applicants/jobs/apply`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email, jobId }),
+      });
 
       const outer = await res.json().catch(() => ({} as any));
       const { statusCode, payload } = parseLambdaResponse(outer, res);
@@ -204,6 +202,7 @@ export default function ApplicantHomePage() {
   return (
     <div className="page-shell--scroll">
       <div className="card-wide">
+        {/* Top nav */}
         <div className="nav-top">
           <button
             className="nav-chip"
@@ -287,6 +286,7 @@ export default function ApplicantHomePage() {
                         {job.company} · {job.location}
                       </div>
                     </div>
+
                     <button
                       onClick={() => handleApply(job.id)}
                       disabled={applied}
@@ -299,6 +299,7 @@ export default function ApplicantHomePage() {
                       {applied ? "Applied" : "Apply"}
                     </button>
                   </div>
+
                   <div
                     style={{
                       fontSize: "0.8rem",
@@ -322,6 +323,7 @@ export default function ApplicantHomePage() {
           )}
         </div>
 
+        {/* Apply feedback */}
         {actionMessage && (
           <p
             style={{
@@ -334,6 +336,7 @@ export default function ApplicantHomePage() {
           </p>
         )}
 
+        {/* Pagination */}
         <div className="pagination">
           <button onClick={() => handlePageChange(currentPage - 1)}>
             ←
