@@ -21,39 +21,28 @@ export default function CompanySignup() {
   const [phone, setPhone] = useState("");
   const [officeAddress, setOfficeAddress] = useState("");
 
+  const [message, setMessage] = useState("");
   const [loading, setLoading] = useState(false);
-  const [message, setMessage] = useState<string | null>(null);
 
-  // ---------- STEP 1 VALIDATION ----------
-  const validateStep1 = () => {
-    if (!email.trim()) return "Email is required";
-    if (!email.includes("@") || !email.includes(".")) return "Invalid email format";
-    if (password.length < 8) return "Password must be at least 8 characters";
+  function validateStep1() {
+    if (!email.includes("@")) return "Invalid email";
+    if (password.length < 8) return "Password must be 8+ characters";
     if (password !== confirmPassword) return "Passwords do not match";
     return null;
-  };
+  }
 
-  // ---------- SUBMIT COMPANY SIGNUP ----------
-  const handleSubmit = async () => {
-    setMessage(null);
-
-    if (!companyName.trim()) {
-      setMessage("Company name is required");
-      return;
-    }
-
+  async function handleSubmit() {
     const payload = {
       email,
       password,
       confirmPassword,
       companyName,
-      aboutCompany: aboutCompany || null,
-      phone: phone || null,
-      officeAddress: officeAddress || null,
+      aboutCompany,
+      phone,
+      officeAddress,
     };
 
     setLoading(true);
-
     try {
       const res = await fetch(SIGNUP_URL, {
         method: "POST",
@@ -62,7 +51,7 @@ export default function CompanySignup() {
       });
 
       const text = await res.text();
-      let data = {};
+      let data;
 
       try {
         data = JSON.parse(text);
@@ -70,170 +59,183 @@ export default function CompanySignup() {
         data = { raw: text };
       }
 
-      if (res.ok) {
-        setMessage("Signup successful! Redirecting to login...");
-        setTimeout(() => router.push("/company/login"), 1500);
-      } else {
-        setMessage(
-          `Error (${res.status}): ${
-            (data as any).message || (data as any).error || "Unknown error"
-          }`
-        );
+      if (!res.ok) {
+        setMessage(data.error || data.message || "Signup failed");
+        setLoading(false);
+        return;
       }
-    } catch (err: any) {
-      setMessage("Network/CORS error: " + err.message);
-    } finally {
-      setLoading(false);
-    }
-  };
 
-  // ============================================================
-  // UI
-  // ============================================================
+      setMessage("Signup successful! Redirecting...");
+
+      setTimeout(() => {
+        router.push("/company/login");
+      }, 1500);
+    } catch (err: any) {
+      setMessage("Network error: " + err.message);
+    }
+
+    setLoading(false);
+  }
 
   return (
-    <div style={{ maxWidth: "600px", margin: "2rem auto", padding: "20px" }}>
-      <h1 style={{ textAlign: "center" }}>Company Signup</h1>
+    <div
+      style={{
+        minHeight: "100vh",
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        background: "#F3F4F6",
+        padding: "20px",
+      }}
+    >
+      <div
+        style={{
+          width: "100%",
+          maxWidth: "600px",
+          background: "white",
+          padding: "40px",
+          borderRadius: "20px",
+          boxShadow: "0 20px 40px rgba(0,0,0,0.1)",
+        }}
+      >
+        <h1 style={{ fontSize: "32px", fontWeight: 700 }}>
+          Create Company Account
+        </h1>
+        <p style={{ marginBottom: 30, color: "#6B7280" }}>
+          Sign up to start posting jobs and managing applicants.
+        </p>
 
-      {/* ---------- STEP 1 ---------- */}
-      {step === 1 && (
-        <>
-          <label>Email</label>
-          <input
-            type="email"
-            placeholder="company@domain.com"
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
-            style={{ width: "100%", padding: 10, marginBottom: 10 }}
-          />
+        {step === 1 && (
+          <>
+            <label>Email</label>
+            <input
+              style={input}
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              type="email"
+            />
 
-          <label>Password</label>
-          <input
-            type="password"
-            placeholder="Minimum 8 characters"
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            style={{ width: "100%", padding: 10, marginBottom: 10 }}
-          />
+            <label>Password</label>
+            <input
+              style={input}
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              type="password"
+            />
 
-          <label>Confirm Password</label>
-          <input
-            type="password"
-            placeholder="Re-enter password"
-            value={confirmPassword}
-            onChange={(e) => setConfirmPassword(e.target.value)}
-            style={{ width: "100%", padding: 10, marginBottom: 20 }}
-          />
+            <label>Confirm Password</label>
+            <input
+              style={input}
+              value={confirmPassword}
+              onChange={(e) => setConfirmPassword(e.target.value)}
+              type="password"
+            />
 
-          <button
-            onClick={() => {
-              const err = validateStep1();
-              if (err) return setMessage(err);
-
-              setMessage(null);
-              setStep(2);
-            }}
-            style={{
-              width: "100%",
-              padding: 12,
-              background: "#0070f3",
-              color: "#fff",
-              borderRadius: 6,
-              border: "none",
-              cursor: "pointer",
-            }}
-          >
-            Next →
-          </button>
-        </>
-      )}
-
-      {/* ---------- STEP 2 ---------- */}
-      {step === 2 && (
-        <>
-          <label>Company Name</label>
-          <input
-            type="text"
-            placeholder="Acme Corporation"
-            value={companyName}
-            onChange={(e) => setCompanyName(e.target.value)}
-            style={{ width: "100%", padding: 10, marginBottom: 10 }}
-          />
-
-          <label>About Company</label>
-          <textarea
-            placeholder="Short description"
-            value={aboutCompany}
-            onChange={(e) => setAboutCompany(e.target.value)}
-            style={{ width: "100%", padding: 10, marginBottom: 10 }}
-          />
-
-          <label>Phone</label>
-          <input
-            type="text"
-            placeholder="+1 555 1234"
-            value={phone}
-            onChange={(e) => setPhone(e.target.value)}
-            style={{ width: "100%", padding: 10, marginBottom: 10 }}
-          />
-
-          <label>Office Address</label>
-          <input
-            type="text"
-            placeholder="123 Office Street"
-            value={officeAddress}
-            onChange={(e) => setOfficeAddress(e.target.value)}
-            style={{ width: "100%", padding: 10, marginBottom: 20 }}
-          />
-
-          <div style={{ display: "flex", gap: 10 }}>
             <button
-              onClick={() => setStep(1)}
-              style={{
-                flex: 1,
-                padding: 12,
-                background: "#fff",
-                border: "1px solid #0070f3",
-                color: "#0070f3",
-                borderRadius: 6,
-                cursor: "pointer",
+              style={button}
+              onClick={() => {
+                const err = validateStep1();
+                if (err) return setMessage(err);
+                setMessage("");
+                setStep(2);
               }}
             >
-              ← Back
+              Next →
             </button>
+          </>
+        )}
+
+        {step === 2 && (
+          <>
+            <label>Company Name</label>
+            <input
+              style={input}
+              value={companyName}
+              onChange={(e) => setCompanyName(e.target.value)}
+            />
+
+            <label>About Company</label>
+            <textarea
+              style={textarea}
+              value={aboutCompany}
+              onChange={(e) => setAboutCompany(e.target.value)}
+            />
+
+            <label>Phone</label>
+            <input
+              style={input}
+              value={phone}
+              onChange={(e) => setPhone(e.target.value)}
+            />
+
+            <label>Office Address</label>
+            <input
+              style={input}
+              value={officeAddress}
+              onChange={(e) => setOfficeAddress(e.target.value)}
+            />
 
             <button
+              style={button}
               onClick={handleSubmit}
               disabled={loading}
-              style={{
-                flex: 1,
-                padding: 12,
-                background: loading ? "#999" : "#0070f3",
-                color: "#fff",
-                borderRadius: 6,
-                border: "none",
-                cursor: loading ? "not-allowed" : "pointer",
-              }}
             >
               {loading ? "Submitting..." : "Submit"}
             </button>
-          </div>
-        </>
-      )}
+          </>
+        )}
 
-      {/* ---------- MESSAGE ---------- */}
-      {message && (
-        <p
+        <p style={{ color: "red", marginTop: 20 }}>{message}</p>
+
+        <hr style={{ margin: "30px 0" }} />
+
+        <a
+          href="/company/login"
           style={{
-            marginTop: 20,
-            padding: 12,
-            background: "#f0f0f0",
-            borderRadius: 6,
+            display: "block",
+            textAlign: "center",
+            padding: "14px",
+            background: "#EEF2FF",
+            borderRadius: "40px",
+            color: "#2563EB",
+            fontWeight: "600",
+            textDecoration: "none",
           }}
         >
-          {message}
-        </p>
-      )}
+          Go to Login
+        </a>
+      </div>
     </div>
   );
 }
+
+const input: React.CSSProperties = {
+  width: "100%",
+  padding: "14px",
+  borderRadius: "40px",
+  border: "1px solid #E5E7EB",
+  marginBottom: "20px",
+  background: "#F9FAFB",
+};
+
+const textarea: React.CSSProperties = {
+  width: "100%",
+  padding: "14px",
+  borderRadius: "12px",
+  border: "1px solid #E5E7EB",
+  marginBottom: "20px",
+  background: "#F9FAFB",
+  minHeight: 80,
+};
+
+const button: React.CSSProperties = {
+  width: "100%",
+  padding: "14px",
+  background: "#2563EB",
+  color: "white",
+  borderRadius: "40px",
+  border: "none",
+  marginTop: "10px",
+  fontWeight: "600",
+  cursor: "pointer",
+};
