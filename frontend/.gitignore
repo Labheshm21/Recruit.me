@@ -44,3 +44,7 @@ backend/venv/
 backend/node_modules/
 *.pyc
 __pycache__/
+
+backend/venv/
+venv/
+**/venv/
