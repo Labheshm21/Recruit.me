@@ -48,3 +48,21 @@ __pycache__/
 backend/venv/
 venv/
 **/venv/
+
+backend/node_modules/
+node_modules/
+**/node_modules/
+backend/venv/
+venv/
+**/venv/
+
+
+# Ignore all node_modules
+node_modules/
+backend/node_modules/
+**/node_modules/
+
+# Ignore Python venvs
+venv/
+backend/venv/
+**/venv/
