@@ -45,6 +45,10 @@ export default function MyApplicationsPage() {
   const [error, setError] = useState("");
   const [message, setMessage] = useState("");
 
+  // pagination state
+  const [currentPage, setCurrentPage] = useState(1);
+  const [totalPages, setTotalPages] = useState(1);
+
   // Load email from localStorage and then load applications
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -54,10 +58,10 @@ export default function MyApplicationsPage() {
       return;
     }
     setEmail(storedEmail);
-    loadApplications(storedEmail);
+    loadApplications(storedEmail, 1);
   }, [router]);
 
-  const loadApplications = async (userEmail: string) => {
+  const loadApplications = async (userEmail: string, page: number) => {
     setLoading(true);
     setError("");
     setMessage("");
@@ -68,7 +72,7 @@ export default function MyApplicationsPage() {
         {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ email: userEmail }),
+          body: JSON.stringify({ email: userEmail, page }),
         }
       );
 
@@ -83,6 +87,8 @@ export default function MyApplicationsPage() {
       }
 
       setApplications(payload.applications || []);
+      setCurrentPage(payload.page || page);
+      setTotalPages(payload.totalPages || 1);
     } catch (err) {
       console.error("loadApplications error:", err);
       setError("Network error: could not reach server.");
@@ -115,11 +121,45 @@ export default function MyApplicationsPage() {
       }
 
       setMessage(payload?.message || "Application withdrawn.");
-      loadApplications(email);
+      // reload same page after withdrawing
+      loadApplications(email, currentPage);
     } catch (err) {
       console.error("withdraw error:", err);
       setError("Network error: could not withdraw.");
     }
+  };
+
+  const handlePageChange = (page: number) => {
+    if (!email) return;
+    if (page < 1 || page > totalPages) return;
+    loadApplications(email, page);
+  };
+
+  const renderPageButtons = () => {
+    const buttons = [];
+    for (let i = 1; i <= totalPages; i++) {
+      buttons.push(
+        <button
+          key={i}
+          onClick={() => handlePageChange(i)}
+          className={i === currentPage ? "is-active" : ""}
+          style={{
+            minWidth: "32px",
+            height: "32px",
+            borderRadius: "9999px",
+            border: "1px solid #e5e7eb",
+            backgroundColor: i === currentPage ? "#2563eb" : "#ffffff",
+            color: i === currentPage ? "#ffffff" : "#111827",
+            fontSize: "0.85rem",
+            marginInline: "2px",
+            cursor: "pointer",
+          }}
+        >
+          {i}
+        </button>
+      );
+    }
+    return buttons;
   };
 
   return (
@@ -146,76 +186,119 @@ export default function MyApplicationsPage() {
         ) : applications.length === 0 ? (
           <p>You haven&apos;t applied to any jobs yet.</p>
         ) : (
-          <div
-            style={{
-              display: "flex",
-              flexDirection: "column",
-              gap: "0.6rem",
-            }}
-          >
-            {applications.map((app) => (
-              <div
-                key={app.jobId}
-                className="section-box"
-                style={{ backgroundColor: "#f9fafb" }}
-              >
+          <>
+            <div
+              style={{
+                display: "flex",
+                flexDirection: "column",
+                gap: "0.6rem",
+              }}
+            >
+              {applications.map((app) => (
                 <div
-                  style={{
-                    display: "flex",
-                    justifyContent: "space-between",
-                    alignItems: "center",
-                    marginBottom: "0.25rem",
-                  }}
+                  key={app.jobId}
+                  className="section-box"
+                  style={{ backgroundColor: "#f9fafb" }}
                 >
-                  <div>
-                    <strong>{app.title}</strong>
-                    <div
-                      style={{ fontSize: "0.85rem", color: "#4b5563" }}
-                    >
-                      {app.company} · {app.location}
-                    </div>
-                    {app.appliedAt && (
+                  <div
+                    style={{
+                      display: "flex",
+                      justifyContent: "space-between",
+                      alignItems: "center",
+                      marginBottom: "0.25rem",
+                    }}
+                  >
+                    <div>
+                      <strong>{app.title}</strong>
                       <div
-                        style={{
-                          fontSize: "0.75rem",
-                          color: "#9ca3af",
-                        }}
+                        style={{ fontSize: "0.85rem", color: "#4b5563" }}
                       >
-                        Applied at:{" "}
-                        {new Date(app.appliedAt).toLocaleString()}
+                        {app.company} · {app.location}
                       </div>
-                    )}
+                      {app.appliedAt && (
+                        <div
+                          style={{
+                            fontSize: "0.75rem",
+                            color: "#9ca3af",
+                          }}
+                        >
+                          Applied at:{" "}
+                          {new Date(app.appliedAt).toLocaleString()}
+                        </div>
+                      )}
+                    </div>
+
+                    <button
+                      className="btn-secondary"
+                      style={{ width: "auto" }}
+                      onClick={() => handleWithdraw(app.jobId)}
+                    >
+                      Withdraw
+                    </button>
                   </div>
 
-                  <button
-                    className="btn-secondary"
-                    style={{ width: "auto" }}
-                    onClick={() => handleWithdraw(app.jobId)}
+                  <div
+                    style={{
+                      fontSize: "0.8rem",
+                      color: "#6b7280",
+                    }}
                   >
-                    Withdraw
-                  </button>
+                    Skills: {app.skills}
+                  </div>
+                  <div
+                    style={{
+                      fontSize: "0.8rem",
+                      color: "#9ca3af",
+                      marginTop: "0.25rem",
+                    }}
+                  >
+                    {app.description}
+                  </div>
                 </div>
+              ))}
+            </div>
 
-                <div
+            {/* Pagination controls */}
+            {totalPages > 1 && (
+              <div
+                style={{
+                  marginTop: "1rem",
+                  display: "flex",
+                  justifyContent: "center",
+                  alignItems: "center",
+                  gap: "0.25rem",
+                }}
+              >
+                <button
+                  onClick={() => handlePageChange(currentPage - 1)}
                   style={{
-                    fontSize: "0.8rem",
-                    color: "#6b7280",
+                    minWidth: "32px",
+                    height: "32px",
+                    borderRadius: "9999px",
+                    border: "1px solid #e5e7eb",
+                    backgroundColor: "#ffffff",
+                    cursor: "pointer",
                   }}
                 >
-                  Skills: {app.skills}
-                </div>
-                <div
+                  ←
+                </button>
+                {renderPageButtons()}
+                <button
+                  onClick={() => handlePageChange(currentPage + 1)}
                   style={{
-                    fontSize: "0.8rem",
-                    color: "#9ca3af",
-                    marginTop: "0.25rem",
+                    minWidth: "32px",
+                    height: "32px",
+                    borderRadius: "9999px",
+                    border: "1px solid #e5e7eb",
+                    backgroundColor: "#ffffff",
+                    cursor: "pointer",
                   }}
                 >
-                  {app.description}
-                </div>
+                  →
+                </button>
               </div>
-            ))}
-          </div>
+            )}
+          </>
         )}
 
         {message && (
