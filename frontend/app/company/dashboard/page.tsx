@@ -198,6 +198,11 @@ export default function CompanyDashboard() {
             darkMode={darkMode}
           />
           <SidebarLink
+            label="View All Jobs"
+            href="/company/jobs"
+            darkMode={darkMode}
+          />
+          <SidebarLink
             label="Create Job"
             href="/company/create-job"
             darkMode={darkMode}
@@ -218,8 +223,8 @@ export default function CompanyDashboard() {
             darkMode={darkMode}
           />
           <SidebarLink
-            label="Edit Company Profile"
-            href="/company/edit-profile"
+            label="Company Profile"
+            href="/company/profile"
             darkMode={darkMode}
           />
         </aside>
@@ -266,6 +271,15 @@ export default function CompanyDashboard() {
             }}
           >
             <ActionCard
+              title="View All Jobs"
+              description="See all your job postings with status."
+              link="/company/jobs"
+              color="#7C3AED"
+              darkMode={darkMode}
+              bg={cardInnerBg}
+              border={borderColor}
+            />
+            <ActionCard
               title="Create Job"
               description="Post a new job to the platform."
               link="/company/create-job"
@@ -303,8 +317,8 @@ export default function CompanyDashboard() {
             />
             <ActionCard
               title="Company Profile"
-              description="Manage your company information."
-              link="/company/edit-profile"
+              description="View and manage your company information."
+              link="/company/profile"
               color="#0891B2"
               darkMode={darkMode}
               bg={cardInnerBg}
