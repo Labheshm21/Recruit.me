@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { Suspense, useState, useEffect } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
 import Link from "next/link";
 
@@ -26,7 +26,7 @@ const ACTIVATE_URL =
 const DEACTIVATE_URL =
   "https://tg9n2lwkqk.execute-api.us-east-2.amazonaws.com/Initial/deactivatejob";
 
-export default function JobDetailsPage() {
+function JobDetailsContent() {
   const searchParams = useSearchParams();
   const router = useRouter();
   const jobId = searchParams.get("id");
@@ -69,9 +69,9 @@ export default function JobDetailsPage() {
       } else {
         setError(data.error || "Failed to fetch job details");
       }
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error("Error fetching job:", err);
-      setError("Network error: " + err.message);
+      setError("Network error: " + (err as Error).message);
     }
 
     setLoading(false);
@@ -261,5 +261,23 @@ export default function JobDetailsPage() {
         </div>
       </div>
     </div>
+  );
+}
+
+function LoadingFallback() {
+  return (
+    <div style={{ minHeight: "100vh", background: "#F3F4F6", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center" }}>
+      <div style={{ width: 40, height: 40, border: "4px solid #E5E7EB", borderTopColor: "#2563EB", borderRadius: "50%", animation: "spin 1s linear infinite" }} />
+      <p style={{ marginTop: 16, color: "#6B7280" }}>Loading...</p>
+      <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
+    </div>
+  );
+}
+
+export default function JobDetailsPage() {
+  return (
+    <Suspense fallback={<LoadingFallback />}>
+      <JobDetailsContent />
+    </Suspense>
   );
 }

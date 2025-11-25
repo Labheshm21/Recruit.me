@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { Suspense, useEffect, useState } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
 import Link from "next/link";
 
@@ -29,7 +29,7 @@ interface Job {
 const GET_JOB_URL = "https://tg9n2lwkqk.execute-api.us-east-2.amazonaws.com/Initial/getjobdetails";
 const VIEW_APPLICANTS_URL = "https://tg9n2lwkqk.execute-api.us-east-2.amazonaws.com/Initial/viewapplicants";
 
-export default function JobApplicantsPage() {
+function JobApplicantsContent() {
   const searchParams = useSearchParams();
   const router = useRouter();
   const jobId = searchParams.get("id");
@@ -274,5 +274,23 @@ export default function JobApplicantsPage() {
         )}
       </div>
     </div>
+  );
+}
+
+function LoadingFallback() {
+  return (
+    <div style={{ minHeight: "100vh", background: "#F3F4F6", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center" }}>
+      <div style={{ width: 40, height: 40, border: "4px solid #E5E7EB", borderTopColor: "#2563EB", borderRadius: "50%", animation: "spin 1s linear infinite" }} />
+      <p style={{ marginTop: 16, color: "#6B7280" }}>Loading...</p>
+      <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
+    </div>
+  );
+}
+
+export default function JobApplicantsPage() {
+  return (
+    <Suspense fallback={<LoadingFallback />}>
+      <JobApplicantsContent />
+    </Suspense>
   );
 }
