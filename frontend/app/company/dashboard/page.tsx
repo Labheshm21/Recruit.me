@@ -207,11 +207,11 @@ export default function CompanyDashboard() {
             href="/company/create-job"
             darkMode={darkMode}
           />
-          <SidebarLink
+          {/* <SidebarLink
             label="Edit Job"
             href="/company/edit-job"
             darkMode={darkMode}
-          />
+          /> */}
           <SidebarLink
             label="Activate Job"
             href="/company/activate-job"
@@ -288,7 +288,7 @@ export default function CompanyDashboard() {
               bg={cardInnerBg}
               border={borderColor}
             />
-            <ActionCard
+            {/* <ActionCard
               title="Edit Job"
               description="Update job details by Job ID."
               link="/company/edit-job"
@@ -296,7 +296,7 @@ export default function CompanyDashboard() {
               darkMode={darkMode}
               bg={cardInnerBg}
               border={borderColor}
-            />
+            /> */}
             <ActionCard
               title="Activate Job"
               description="Make a job visible to applicants."
