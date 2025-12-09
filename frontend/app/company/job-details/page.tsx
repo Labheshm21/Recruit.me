@@ -171,7 +171,7 @@ function JobDetailsContent() {
           </Link>
           
           <div style={{ display: "flex", gap: 12 }}>
-            <Link href={`/company/job-edit?id=${jobId}`} style={{ padding: "10px 20px", background: "#2563EB", color: "white", borderRadius: 8, textDecoration: "none", fontWeight: 600, fontSize: 14 }}>
+            <Link href={`/company/job-edit`} onClick={(e) => { e.preventDefault(); try { sessionStorage.setItem('editing_job_id', String(jobId)); } catch {} ; router.push('/company/job-edit'); }} style={{ padding: "10px 20px", background: "#2563EB", color: "white", borderRadius: 8, textDecoration: "none", fontWeight: 600, fontSize: 14 }}>
               ✏️ Edit Job
             </Link>
             <Link href={`/company/job-applicants?id=${jobId}`} style={{ padding: "10px 20px", background: "#7C3AED", color: "white", borderRadius: 8, textDecoration: "none", fontWeight: 600, fontSize: 14 }}>
@@ -249,7 +249,7 @@ function JobDetailsContent() {
                 </button>
               )}
               
-              <Link href={`/company/job-edit?id=${jobId}`} style={{ padding: "12px 24px", background: "#2563EB", color: "white", borderRadius: 8, textDecoration: "none", fontSize: 14, fontWeight: 600 }}>
+              <Link href={`/company/job-edit`} onClick={(e) => { e.preventDefault(); try { sessionStorage.setItem('editing_job_id', String(jobId)); } catch {} ; router.push('/company/job-edit'); }} style={{ padding: "12px 24px", background: "#2563EB", color: "white", borderRadius: 8, textDecoration: "none", fontSize: 14, fontWeight: 600 }}>
                 ✏️ Edit Job
               </Link>
               
