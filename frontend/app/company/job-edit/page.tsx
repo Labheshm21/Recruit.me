@@ -1,7 +1,7 @@
 "use client";
 
 import { Suspense, useEffect, useState, FormEvent } from "react";
-import { useSearchParams, useRouter } from "next/navigation";
+import { useRouter } from "next/navigation";
 import Link from "next/link";
 
 interface Job {
@@ -20,17 +20,17 @@ const GET_JOB_URL = "https://tg9n2lwkqk.execute-api.us-east-2.amazonaws.com/Init
 const EDIT_JOB_URL = "https://tg9n2lwkqk.execute-api.us-east-2.amazonaws.com/Initial/editjob";
 
 function EditJobContent() {
-  const searchParams = useSearchParams();
   const router = useRouter();
-  const jobId = searchParams.get("id");
+  const [jobId, setJobId] = useState<string | null>(null);
 
   const [loading, setLoading] = useState<boolean>(true);
   const [saving, setSaving] = useState<boolean>(false);
   const [job, setJob] = useState<Job | null>(null);
   const [message, setMessage] = useState<string>("");
 
-  async function loadJob(): Promise<void> {
-    if (!jobId) {
+  async function loadJob(id?: string | null): Promise<void> {
+    const idToUse = id ?? jobId;
+    if (!idToUse) {
       setLoading(false);
       return;
     }
@@ -45,7 +45,7 @@ function EditJobContent() {
       });
 
       const data = await res.json();
-      const found = (data.jobs || []).find((j: Job) => j.id === Number(jobId));
+      const found = (data.jobs || []).find((j: Job) => j.id === Number(idToUse));
       setJob(found || null);
     } catch (err) {
       console.error("Error loading job:", err);
@@ -54,13 +54,25 @@ function EditJobContent() {
   }
 
   useEffect(() => {
+    // run once on mount
     const companyId = localStorage.getItem("company_id");
     if (!companyId) {
       router.push("/company/login");
       return;
     }
-    loadJob();
-  }, [jobId]);
+    // prefer id passed via sessionStorage (set by links), fall back to URL query
+    const stored = typeof window !== "undefined" ? sessionStorage.getItem("editing_job_id") : null;
+    const params = typeof window !== "undefined" ? new URLSearchParams(window.location.search) : null;
+    const urlId = params ? params.get("id") : null;
+    const idToUse = stored || urlId;
+    if (stored) {
+      // clear stored id after reading
+      try { sessionStorage.removeItem("editing_job_id"); } catch {}
+    }
+    setJobId(idToUse);
+    loadJob(idToUse);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []); // run only on mount
 
   async function handleUpdate(e: FormEvent<HTMLFormElement>): Promise<void> {
     e.preventDefault();
@@ -70,8 +82,26 @@ function EditJobContent() {
 
     setSaving(true);
 
-    const payload = {
-      job_id: jobId,
+    // read the submitted form data so the job id can be passed through the button/form body
+    const form = e.currentTarget as HTMLFormElement;
+    const formData = new FormData(form);
+
+    // Prefer explicit job.id (from loaded job) then form value then jobId fallback
+    const submittedId =
+      formData.get("id")?.toString() ||
+      (job.id !== undefined && job.id !== null ? String(job.id) : null) ||
+      jobId;
+
+    if (!submittedId) {
+      setMessage("Missing job id.");
+      setSaving(false);
+      return;
+    }
+
+    const companyId = localStorage.getItem("company_id");
+
+    const payload: Record<string, unknown> = {
+      id: submittedId,
       job_name: job.job_name,
       job_description: job.job_description,
       job_type: job.job_type,
@@ -82,6 +112,13 @@ function EditJobContent() {
       location: job.location,
     };
 
+    if (companyId) {
+      payload.company_id = Number(companyId);
+    }
+
+    // debug: inspect payload before sending
+    console.log("Submitting edit job payload:", payload);
+
     try {
       const res = await fetch(EDIT_JOB_URL, {
         method: "POST",
@@ -90,12 +127,15 @@ function EditJobContent() {
       });
 
       const out = await res.json();
+      console.log("editjob response:", res.status, out);
 
       if (res.ok) {
         setMessage("Job updated successfully!");
         setTimeout(() => router.push("/company/jobs"), 1200);
       } else {
-        setMessage(out.error || "Failed to update job");
+        // show details from lambda if available
+        const detailMsg = out?.details ? `: ${JSON.stringify(out.details)}` : "";
+        setMessage(out.error ? `${out.error}${detailMsg}` : "Failed to update job");
       }
     } catch (err) {
       setMessage("Network error: " + (err as Error).message);
@@ -161,7 +201,9 @@ function EditJobContent() {
         {/* Form Card */}
         <div style={{ background: "white", borderRadius: 16, padding: 32, boxShadow: "0 4px 12px rgba(0,0,0,0.08)" }}>
           <form onSubmit={handleUpdate}>
-            
+            {/* ensure id is always submitted */}
+            <input type="hidden" name="id" value={job.id} />
+
             <label style={labelStyle}>Job Title *</label>
             <input
               type="text"
@@ -287,8 +329,8 @@ function EditJobContent() {
                 marginTop: 16,
                 padding: 12,
                 borderRadius: 8,
-                background: message.includes("success") ? "#D1FAE5" : "#FEE2E2",
-                color: message.includes("success") ? "#065F46" : "#991B1B",
+                background: message.toLowerCase().includes("success") ? "#D1FAE5" : "#FEE2E2",
+                color: message.toLowerCase().includes("success") ? "#065F46" : "#991B1B",
                 fontWeight: 500,
               }}>
                 {message}

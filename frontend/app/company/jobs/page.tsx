@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
 
 interface Job {
   id: number;
@@ -15,6 +16,7 @@ export default function CompanyJobsPage() {
   const [loading, setLoading] = useState<boolean>(true);
   const [companyId, setCompanyId] = useState<string | null>(null);
   const [actionLoading, setActionLoading] = useState<number | null>(null);
+  const router = useRouter();
 
   // Pagination states
   const [limit] = useState<number>(5);
@@ -113,6 +115,7 @@ export default function CompanyJobsPage() {
 
   useEffect(() => {
     if (companyId) fetchJobs();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [companyId, page]);
 
   if (loading) return <p className="p-6 text-gray-600">Loading jobs...</p>;
@@ -157,12 +160,17 @@ export default function CompanyJobsPage() {
                 {jobs.map((job) => (
                   <tr key={job.id} className="border-b hover:bg-gray-50">
                     <td className="p-4">
-                      <a 
-                        href={`/company/job-details?id=${job.id}`}
+                      {/* View job-details WITHOUT query param: store id then navigate */}
+                      <button
+                        onClick={(e) => {
+                          e.preventDefault();
+                          try { sessionStorage.setItem("view_job_id", String(job.id)); } catch {}
+                          router.push('/company/job-details');
+                        }}
                         className="text-blue-600 hover:text-blue-800 hover:underline font-medium"
                       >
                         {job.job_name}
-                      </a>
+                      </button>
                     </td>
                     <td className="p-4 capitalize">{job.job_type}</td>
                     <td className="p-4 capitalize">{job.location}</td>
@@ -180,25 +188,39 @@ export default function CompanyJobsPage() {
                     </td>
 
                     <td className="p-4 flex gap-2 justify-center flex-wrap">
-                      <a
-                        href={`/company/job-details?id=${job.id}`}
+                      <button
+                        onClick={(e) => {
+                          e.preventDefault();
+                          try { sessionStorage.setItem("view_job_id", String(job.id)); } catch {}
+                          router.push('/company/job-details');
+                        }}
                         className="px-3 py-1 bg-gray-600 text-white rounded-lg text-sm hover:bg-gray-700"
                       >
                         View
-                      </a>
-                      <a
-                        href={`/company/job-edit?id=${job.id}`}
+                      </button>
+
+                      <button
+                        onClick={(e) => {
+                          e.preventDefault();
+                          try { sessionStorage.setItem("editing_job_id", String(job.id)); } catch {}
+                          router.push('/company/job-edit');
+                        }}
                         className="px-3 py-1 bg-blue-600 text-white rounded-lg text-sm hover:bg-blue-700"
                       >
                         Edit
-                      </a>
+                      </button>
 
-                      <a
-                        href={`/company/job-applicants?id=${job.id}`}
+                      {/* Applicants: store id then navigate (no ?id=) */}
+                      <button
+                        onClick={(e) => {
+                          e.preventDefault();
+                          try { sessionStorage.setItem("view_job_id", String(job.id)); } catch {}
+                          router.push('/company/job-applicants');
+                        }}
                         className="px-3 py-1 bg-purple-600 text-white rounded-lg text-sm hover:bg-purple-700"
                       >
                         Applicants
-                      </a>
+                      </button>
 
                       {job.job_status === "active" ? (
                         <button

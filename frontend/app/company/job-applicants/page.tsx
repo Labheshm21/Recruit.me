@@ -1,12 +1,13 @@
 "use client";
 
 import { Suspense, useEffect, useState } from "react";
-import { useSearchParams, useRouter } from "next/navigation";
+import { useRouter } from "next/navigation";
 import Link from "next/link";
 
 interface Applicant {
   id: number;
-  user_id: number;
+  user_id?: number;
+  rating?: string;
   user_name?: string;
   user_email?: string;
   name?: string;
@@ -18,6 +19,7 @@ interface Applicant {
   application_date?: string;
   created_at?: string;
   resume_url?: string;
+  offer_sent?: boolean; // optional backend-provided flag
 }
 
 interface Job {
@@ -29,23 +31,27 @@ interface Job {
 const GET_JOB_URL = "https://tg9n2lwkqk.execute-api.us-east-2.amazonaws.com/Initial/getjobdetails";
 const VIEW_APPLICANTS_URL = "https://tg9n2lwkqk.execute-api.us-east-2.amazonaws.com/Initial/viewapplicants";
 
-function JobApplicantsContent() {
-  const searchParams = useSearchParams();
-  const router = useRouter();
-  const jobId = searchParams.get("id");
+// Your provided API endpoint for offers (single endpoint handling both send/rescind)
+const OFFER_API_URL = "https://tg9n2lwkqk.execute-api.us-east-2.amazonaws.com/Initial/offerjob";
 
+function JobApplicantsContent() {
+  const router = useRouter();
+
+  const [jobId, setJobId] = useState<string | null>(null);
   const [loading, setLoading] = useState<boolean>(true);
   const [job, setJob] = useState<Job | null>(null);
   const [applicants, setApplicants] = useState<Applicant[]>([]);
   const [page, setPage] = useState<number>(1);
   const perPage = 10;
 
-  async function loadData(): Promise<void> {
-    if (!jobId) {
-      setLoading(false);
-      return;
-    }
+  // Track which applicants have offers (local state fallback if backend not used)
+  const [offers, setOffers] = useState<Record<number, boolean>>({});
+  // Track loading per-applicant for send/rescind action
+  const [offerLoading, setOfferLoading] = useState<number | null>(null);
+  // Track messages to show (optional)
+  const [message, setMessage] = useState<string>("");
 
+  async function loadData(currentJobId: string): Promise<void> {
     try {
       const companyId = localStorage.getItem("company_id");
 
@@ -56,27 +62,119 @@ function JobApplicantsContent() {
         body: JSON.stringify({ company_id: Number(companyId) }),
       });
       const jobData = await jobRes.json();
-      const foundJob = (jobData.jobs || []).find((j: Job) => j.id === Number(jobId));
+      const foundJob = (jobData.jobs || []).find((j: Job) => j.id === Number(currentJobId));
       setJob(foundJob || null);
 
       // Load applicants
-      console.log("Fetching applicants for job_id:", jobId);
       const appRes = await fetch(VIEW_APPLICANTS_URL, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ job_id: Number(jobId) }),
+        body: JSON.stringify({ job_id: Number(currentJobId) }),
       });
       const appData = await appRes.json();
-      console.log("Applicants API response:", appData);
-      
+
       // Handle different response structures
-      const applicantsList = appData.applicants || appData.data || appData.applications || [];
-      console.log("Parsed applicants:", applicantsList);
+      const applicantsList: Applicant[] = appData.applicants || appData.data || appData.applications || [];
+
       setApplicants(applicantsList);
+
+      // Initialize offers map from backend-provided flag or status if present
+      const initialOffers: Record<number, boolean> = {};
+      for (const a of applicantsList) {
+        initialOffers[a.id] = !!a.offer_sent || (a.application_status || "").toLowerCase() === "offered";
+      }
+      setOffers(initialOffers);
     } catch (err) {
       console.error("Error loading data:", err);
+      setMessage("Failed to load applicants.");
+    } finally {
+      setLoading(false);
     }
-    setLoading(false);
+  }
+
+  // Helper to update a single applicant in state
+  function updateApplicantInState(id: number, patch: Partial<Applicant>) {
+    setApplicants(prev => prev.map(a => (a.id === id ? { ...a, ...patch } : a)));
+  }
+
+  // Send offer handler
+  async function sendOffer(applicant: Applicant) {
+    const id = applicant.id;
+    setOfferLoading(id);
+    setMessage("");
+
+    try {
+      const companyId = localStorage.getItem("company_id");
+      const body = {
+        action: "send",
+        job_id: Number(jobId),
+        applicant_id: id,
+        user_email: applicant.user_email || applicant.email || applicant.applicant_email,
+        company_id: companyId ? Number(companyId) : undefined,
+      };
+
+      const res = await fetch(OFFER_API_URL, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      });
+
+      const out = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        const errMsg = out.error || "Failed to send offer";
+        setMessage(errMsg);
+      } else {
+        // mark as sent locally and update applicant status to Offered
+        setOffers(prev => ({ ...prev, [id]: true }));
+        updateApplicantInState(id, { offer_sent: true, application_status: "Offered" });
+        setMessage(out.message || "Offer sent.");
+      }
+    } catch (err) {
+      console.error("sendOffer error:", err);
+      setMessage("Network error while sending offer.");
+    } finally {
+      setOfferLoading(null);
+    }
+  }
+
+  // Rescind offer handler
+  async function rescindOffer(applicant: Applicant) {
+    const id = applicant.id;
+    setOfferLoading(id);
+    setMessage("");
+
+    try {
+      const companyId = localStorage.getItem("company_id");
+      const body = {
+        action: "rescind",
+        job_id: Number(jobId),
+        applicant_id: id,
+        user_email: applicant.user_email || applicant.email || applicant.applicant_email,
+        company_id: companyId ? Number(companyId) : undefined,
+      };
+
+      const res = await fetch(OFFER_API_URL, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      });
+
+      const out = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        const errMsg = out.error || "Failed to rescind offer";
+        setMessage(errMsg);
+      } else {
+        // mark rescinded locally and set a sensible default status (Pending)
+        setOffers(prev => ({ ...prev, [id]: false }));
+        updateApplicantInState(id, { offer_sent: false, application_status: "Pending" });
+        setMessage(out.message || "Offer rescinded.");
+      }
+    } catch (err) {
+      console.error("rescindOffer error:", err);
+      setMessage("Network error while rescinding offer.");
+    } finally {
+      setOfferLoading(null);
+    }
   }
 
   useEffect(() => {
@@ -85,11 +183,24 @@ function JobApplicantsContent() {
       router.push("/company/login");
       return;
     }
-    loadData();
-  }, [jobId]);
+
+    // Read job id from sessionStorage (set by the button that navigates here)
+    const storedId = typeof window !== "undefined" ? sessionStorage.getItem("view_job_id") : null;
+
+    if (!storedId) {
+      // If missing, send user back to jobs list
+      router.push("/company/jobs");
+      return;
+    }
+
+    setJobId(storedId);
+    loadData(storedId);
+
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // Pagination
-  const totalPages = Math.ceil(applicants.length / perPage);
+  const totalPages = Math.max(1, Math.ceil(applicants.length / perPage));
   const paginatedApplicants = applicants.slice((page - 1) * perPage, page * perPage);
 
   if (loading) {
@@ -133,6 +244,8 @@ function JobApplicantsContent() {
         return { ...base, background: "#D1FAE5", color: "#065F46" };
       case "rejected":
         return { ...base, background: "#FEE2E2", color: "#991B1B" };
+      case "offered":
+        return { ...base, background: "#E0F2FE", color: "#075985" }; // offered badge style
       default:
         return { ...base, background: "#E5E7EB", color: "#374151" };
     }
@@ -151,14 +264,40 @@ function JobApplicantsContent() {
             </p>
           </div>
           <div style={{ display: "flex", gap: 12 }}>
-            <Link href={`/company/job-details?id=${jobId}`} style={{ padding: "10px 20px", background: "white", color: "#374151", borderRadius: 8, textDecoration: "none", fontWeight: 500, fontSize: 14, border: "1px solid #D1D5DB" }}>
+            <button
+              onClick={() => {
+                if (jobId) {
+                  sessionStorage.setItem("view_job_id", String(jobId));
+                  router.push("/company/job-details");
+                }
+              }}
+              style={{
+                padding: "10px 20px",
+                background: "white",
+                color: "#374151",
+                borderRadius: 8,
+                textDecoration: "none",
+                fontWeight: 500,
+                fontSize: 14,
+                border: "1px solid #D1D5DB",
+                cursor: "pointer",
+              }}
+            >
               📋 View Job
-            </Link>
+            </button>
+
             <Link href="/company/jobs" style={{ padding: "10px 20px", background: "#E5E7EB", color: "#374151", borderRadius: 8, textDecoration: "none", fontWeight: 500, fontSize: 14 }}>
               ← Back to Jobs
             </Link>
           </div>
         </div>
+
+        {/* Message */}
+        {message && (
+          <div style={{ marginBottom: 16, padding: 12, borderRadius: 8, background: "#FEF3C7", color: "#92400E", fontWeight: 600 }}>
+            {message}
+          </div>
+        )}
 
         {/* Stats Bar */}
         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(150px, 1fr))", gap: 16, marginBottom: 24 }}>
@@ -196,41 +335,135 @@ function JobApplicantsContent() {
         ) : (
           <div style={{ background: "white", borderRadius: 16, overflow: "hidden", boxShadow: "0 4px 12px rgba(0,0,0,0.08)" }}>
             {/* Table Header */}
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1.5fr 1fr 1fr", padding: "16px 20px", background: "#F9FAFB", borderBottom: "1px solid #E5E7EB", fontWeight: 600, fontSize: 13, color: "#6B7280", textTransform: "uppercase" }}>
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1.5fr 1fr 1fr 1fr 200px", padding: "16px 20px", background: "#F9FAFB", borderBottom: "1px solid #E5E7EB", fontWeight: 600, fontSize: 13, color: "#6B7280", textTransform: "uppercase" }}>
               <span>Name</span>
               <span>Email</span>
               <span>Applied</span>
               <span>Status</span>
+              <span>Rating</span>
+              <span style={{ textAlign: "center" }}>Actions</span>
             </div>
 
             {/* Table Rows */}
-            {paginatedApplicants.map((applicant, index) => (
-              <div
-                key={applicant.id || index}
-                style={{
-                  display: "grid",
-                  gridTemplateColumns: "1fr 1.5fr 1fr 1fr",
-                  padding: "16px 20px",
-                  borderBottom: "1px solid #F3F4F6",
-                  alignItems: "center",
-                }}
-              >
-                <span style={{ fontWeight: 600, color: "#111827" }}>
-                  {applicant.user_name || applicant.name || applicant.applicant_name || "N/A"}
-                </span>
-                <span style={{ color: "#6B7280", fontSize: 14 }}>
-                  {applicant.user_email || applicant.email || applicant.applicant_email || "N/A"}
-                </span>
-                <span style={{ color: "#6B7280", fontSize: 14 }}>
-                  {(applicant.applied_at || applicant.application_date || applicant.created_at) 
-                    ? new Date(applicant.applied_at || applicant.application_date || applicant.created_at || "").toLocaleDateString() 
-                    : "N/A"}
-                </span>
-                <span style={getStatusBadge(applicant.application_status || "pending")}>
-                  {applicant.application_status || "Pending"}
-                </span>
-              </div>
-            ))}
+            {paginatedApplicants.map((applicant, index) => {
+              // consider applicant as having an offer if either local offers map says so OR their status is "offered"
+              const offerSent = !!offers[applicant.id] || (applicant.application_status || "").toLowerCase() === "offered";
+              const isHirable = (applicant.rating || "").toLowerCase() === "hirable".toLowerCase();
+
+              return (
+                <div
+                  key={applicant.id || index}
+                  style={{
+                    display: "grid",
+                    gridTemplateColumns: "1fr 1.5fr 1fr 1fr 1fr 200px",
+                    padding: "16px 20px",
+                    borderBottom: "1px solid #F3F4F6",
+                    alignItems: "center",
+                    gap: 12,
+                  }}
+                >
+                  <span style={{ fontWeight: 600, color: "#111827" }}>
+                    {applicant.user_name || applicant.name || applicant.applicant_name || "N/A"}
+                  </span>
+                  <span style={{ color: "#6B7280", fontSize: 14 }}>
+                    {applicant.user_email || applicant.email || applicant.applicant_email || "N/A"}
+                  </span>
+                  <span style={{ color: "#6B7280", fontSize: 14 }}>
+                    {(applicant.applied_at || applicant.application_date || applicant.created_at) 
+                      ? new Date(applicant.applied_at || applicant.application_date || applicant.created_at || "").toLocaleDateString() 
+                      : "N/A"}
+                  </span>
+                  <span style={getStatusBadge(applicant.application_status || "pending")}>
+                    {applicant.application_status || "Pending"}
+                  </span>
+                  <div>
+                    <select
+                      value={applicant.rating ?? "Wait"}
+                      onChange={(e) => {
+                        const newRating = e.target.value;
+                        // update local rating
+                        setApplicants((prev) =>
+                          prev.map((a) => (a.id === applicant.id ? { ...a, rating: newRating } : a))
+                        );
+                      }}
+                      style={{
+                        padding: "8px 10px",
+                        borderRadius: 8,
+                        border: "1px solid #E5E7EB",
+                        background: "white",
+                        fontSize: 14,
+                        fontWeight: 600,
+                        color: "#111827",
+                        width: "100%",
+                      }}
+                    >
+                      <option value="Wait">Wait</option>
+                      <option value="Hirable">Hirable</option>
+                      <option value="Unacceptable">Unacceptable</option>
+                    </select>
+                  </div>
+
+                  {/* Actions column: Send Offer / Rescind Offer */}
+                  <div style={{ display: "flex", justifyContent: "center", gap: 8 }}>
+                    {/* Send Offer: only show when Hirable && not already sent */}
+                    {!offerSent && isHirable && (
+                      <button
+                        onClick={() => sendOffer(applicant)}
+                        disabled={offerLoading === applicant.id}
+                        style={{
+                          padding: "8px 12px",
+                          background: offerLoading === applicant.id ? "#E5E7EB" : "#10B981",
+                          color: offerLoading === applicant.id ? "#9CA3AF" : "white",
+                          borderRadius: 8,
+                          border: "none",
+                          cursor: offerLoading === applicant.id ? "not-allowed" : "pointer",
+                          fontWeight: 600,
+                        }}
+                      >
+                        {offerLoading === applicant.id ? "Sending..." : "Send Offer"}
+                      </button>
+                    )}
+
+                    {/* Rescind Offer: show when offerSent OR application_status is OFFERED */}
+                    {offerSent && (
+                      <button
+                        onClick={() => rescindOffer(applicant)}
+                        disabled={offerLoading === applicant.id}
+                        style={{
+                          padding: "8px 12px",
+                          background: offerLoading === applicant.id ? "#E5E7EB" : "#EF4444",
+                          color: offerLoading === applicant.id ? "#9CA3AF" : "white",
+                          borderRadius: 8,
+                          border: "none",
+                          cursor: offerLoading === applicant.id ? "not-allowed" : "pointer",
+                          fontWeight: 600,
+                        }}
+                      >
+                        {offerLoading === applicant.id ? "Processing..." : "Rescind Offer"}
+                      </button>
+                    )}
+
+                    {/* If not hirable and not sent, show disabled placeholder so layout doesn't shift */}
+                    {!offerSent && !isHirable && (
+                      <button
+                        disabled
+                        style={{
+                          padding: "8px 12px",
+                          background: "#E5E7EB",
+                          color: "#9CA3AF",
+                          borderRadius: 8,
+                          border: "none",
+                          cursor: "not-allowed",
+                          fontWeight: 600,
+                        }}
+                      >
+                        No Action
+                      </button>
+                    )}
+                  </div>
+                </div>
+              );
+            })}
 
             {/* Pagination */}
             {totalPages > 1 && (
