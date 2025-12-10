@@ -22,7 +22,7 @@ export default function CreateJobPage() {
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState("");
 
-  function mapJobType(type) {
+  function mapJobType(type: string) {
     return type === "Full-Time"
       ? "fulltime"
       : type === "Part-Time"
@@ -32,7 +32,7 @@ export default function CreateJobPage() {
       : "contract";
   }
 
-  function mapWorkMode(mode) {
+  function mapWorkMode(mode: string) {
     return mode === "Onsite"
       ? "onsite"
       : mode === "Remote"
@@ -40,11 +40,11 @@ export default function CreateJobPage() {
       : "hybrid";
   }
 
-  function mapStatus(status) {
+  function mapStatus(status: string) {
     return status === "Active" ? "active" : "inactive";
   }
 
-  const handleSubmit = async (e) => {
+  const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     setMessage("");
 
@@ -90,7 +90,7 @@ export default function CreateJobPage() {
         setMessage(data.error || "Failed to create job");
       }
     } catch (err) {
-      setMessage("Network error: " + err.message);
+      setMessage("Network error: " + (err instanceof Error ? err.message : "Unknown error"));
     }
 
     setLoading(false);
@@ -215,7 +215,7 @@ const inputStyle = {
   fontSize: "15px"
 };
 
-const submitButtonStyle = (loading) => ({
+const submitButtonStyle = (loading: boolean) => ({
   width: "100%",
   padding: "12px",
   background: loading ? "#9CA3AF" : "#2563EB",

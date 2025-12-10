@@ -14,7 +14,7 @@ export default function CompanyLogin() {
   const [password, setPassword] = useState("");
   const [message, setMessage] = useState("");
 
-  async function handleLogin(e) {
+  async function handleLogin(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
     setMessage("");
 
@@ -42,7 +42,7 @@ export default function CompanyLogin() {
       setMessage("Login successful! Redirecting...");
       setTimeout(() => router.push("/company/dashboard"), 1500);
     } catch (err) {
-      setMessage("Network error: " + err.message);
+      setMessage("Network error: " + (err instanceof Error ? err.message : "Unknown error"));
     }
   }
 

@@ -9,6 +9,8 @@ interface Job {
   job_type: string;
   location: string;
   job_status: string;
+  // optionally, if backend later sends this we can display it
+  final_decision_announced?: boolean;
 }
 
 export default function CompanyJobsPage() {
@@ -24,11 +26,13 @@ export default function CompanyJobsPage() {
 
   const GET_JOBS_URL =
     "https://tg9n2lwkqk.execute-api.us-east-2.amazonaws.com/Initial/getjobdetails";
-  
-  const ACTIVATE_URL = process.env.NEXT_PUBLIC_COMPANY_ACTIVATE_JOB || 
+
+  const ACTIVATE_URL =
+    process.env.NEXT_PUBLIC_COMPANY_ACTIVATE_JOB ||
     "https://tg9n2lwkqk.execute-api.us-east-2.amazonaws.com/Initial/activatejob";
-  
-  const DEACTIVATE_URL = process.env.NEXT_PUBLIC_COMPANY_DEACTIVATE_JOB || 
+
+  const DEACTIVATE_URL =
+    process.env.NEXT_PUBLIC_COMPANY_DEACTIVATE_JOB ||
     "https://tg9n2lwkqk.execute-api.us-east-2.amazonaws.com/Initial/deactivatejob";
 
   async function fetchJobs(): Promise<void> {
@@ -43,8 +47,8 @@ export default function CompanyJobsPage() {
         body: JSON.stringify({
           company_id: Number(companyId),
           limit: limit,
-          offset: page * limit
-        })
+          offset: page * limit,
+        }),
       });
 
       const data = await res.json();
@@ -64,14 +68,16 @@ export default function CompanyJobsPage() {
       const res = await fetch(ACTIVATE_URL, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ job_id: jobId })
+        body: JSON.stringify({ job_id: jobId }),
       });
 
       if (res.ok) {
         // Update local state
-        setJobs(jobs.map(job => 
-          job.id === jobId ? { ...job, job_status: "active" } : job
-        ));
+        setJobs((prev) =>
+          prev.map((job) =>
+            job.id === jobId ? { ...job, job_status: "active" } : job
+          )
+        );
       } else {
         const data = await res.json();
         alert(data.error || "Failed to activate job");
@@ -89,14 +95,16 @@ export default function CompanyJobsPage() {
       const res = await fetch(DEACTIVATE_URL, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ job_id: jobId })
+        body: JSON.stringify({ job_id: jobId }),
       });
 
       if (res.ok) {
         // Update local state
-        setJobs(jobs.map(job => 
-          job.id === jobId ? { ...job, job_status: "inactive" } : job
-        ));
+        setJobs((prev) =>
+          prev.map((job) =>
+            job.id === jobId ? { ...job, job_status: "inactive" } : job
+          )
+        );
       } else {
         const data = await res.json();
         alert(data.error || "Failed to deactivate job");
@@ -125,14 +133,14 @@ export default function CompanyJobsPage() {
       <div className="flex justify-between items-center mb-8">
         <h1 className="text-4xl font-bold">Your Company Jobs</h1>
         <div className="flex gap-4">
-          <a 
-            href="/company/activate-job" 
+          <a
+            href="/company/activate-job"
             className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700"
           >
             View Inactive Jobs
           </a>
-          <a 
-            href="/company/deactivate-job" 
+          <a
+            href="/company/deactivate-job"
             className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700"
           >
             View Active Jobs
@@ -164,8 +172,13 @@ export default function CompanyJobsPage() {
                       <button
                         onClick={(e) => {
                           e.preventDefault();
-                          try { sessionStorage.setItem("view_job_id", String(job.id)); } catch {}
-                          router.push('/company/job-details');
+                          try {
+                            sessionStorage.setItem(
+                              "view_job_id",
+                              String(job.id)
+                            );
+                          } catch {}
+                          router.push("/company/job-details");
                         }}
                         className="text-blue-600 hover:text-blue-800 hover:underline font-medium"
                       >
@@ -176,23 +189,37 @@ export default function CompanyJobsPage() {
                     <td className="p-4 capitalize">{job.location}</td>
 
                     <td className="p-4">
-                      {job.job_status === "active" ? (
-                        <span className="px-3 py-1 text-sm bg-green-100 text-green-700 rounded-full">
-                          Active
-                        </span>
-                      ) : (
-                        <span className="px-3 py-1 text-sm bg-red-100 text-red-700 rounded-full">
-                          Inactive
-                        </span>
-                      )}
+                      <div className="flex flex-col gap-1">
+                        {job.job_status === "active" ? (
+                          <span className="px-3 py-1 text-sm bg-green-100 text-green-700 rounded-full w-fit">
+                            Active
+                          </span>
+                        ) : (
+                          <span className="px-3 py-1 text-sm bg-red-100 text-red-700 rounded-full w-fit">
+                            Inactive
+                          </span>
+                        )}
+
+                        {/* Optional small badge if later backend sends final_decision_announced */}
+                        {job.final_decision_announced && (
+                          <span className="px-2 py-0.5 mt-1 text-xs bg-blue-100 text-blue-700 rounded-full w-fit">
+                            Decision announced
+                          </span>
+                        )}
+                      </div>
                     </td>
 
                     <td className="p-4 flex gap-2 justify-center flex-wrap">
                       <button
                         onClick={(e) => {
                           e.preventDefault();
-                          try { sessionStorage.setItem("view_job_id", String(job.id)); } catch {}
-                          router.push('/company/job-details');
+                          try {
+                            sessionStorage.setItem(
+                              "view_job_id",
+                              String(job.id)
+                            );
+                          } catch {}
+                          router.push("/company/job-details");
                         }}
                         className="px-3 py-1 bg-gray-600 text-white rounded-lg text-sm hover:bg-gray-700"
                       >
@@ -202,8 +229,13 @@ export default function CompanyJobsPage() {
                       <button
                         onClick={(e) => {
                           e.preventDefault();
-                          try { sessionStorage.setItem("editing_job_id", String(job.id)); } catch {}
-                          router.push('/company/job-edit');
+                          try {
+                            sessionStorage.setItem(
+                              "editing_job_id",
+                              String(job.id)
+                            );
+                          } catch {}
+                          router.push("/company/job-edit");
                         }}
                         className="px-3 py-1 bg-blue-600 text-white rounded-lg text-sm hover:bg-blue-700"
                       >
@@ -214,12 +246,34 @@ export default function CompanyJobsPage() {
                       <button
                         onClick={(e) => {
                           e.preventDefault();
-                          try { sessionStorage.setItem("view_job_id", String(job.id)); } catch {}
-                          router.push('/company/job-applicants');
+                          try {
+                            sessionStorage.setItem(
+                              "view_job_id",
+                              String(job.id)
+                            );
+                          } catch {}
+                          router.push("/company/job-applicants");
                         }}
                         className="px-3 py-1 bg-purple-600 text-white rounded-lg text-sm hover:bg-purple-700"
                       >
                         Applicants
+                      </button>
+
+                      {/* NEW: Report button – jumps to Job Details "report" section */}
+                      <button
+                        onClick={(e) => {
+                          e.preventDefault();
+                          try {
+                            sessionStorage.setItem(
+                              "view_job_id",
+                              String(job.id)
+                            );
+                          } catch {}
+                          router.push("/company/job-details#report");
+                        }}
+                        className="px-3 py-1 bg-indigo-600 text-white rounded-lg text-sm hover:bg-indigo-700"
+                      >
+                        Report
                       </button>
 
                       {job.job_status === "active" ? (
