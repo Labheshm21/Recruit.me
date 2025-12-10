@@ -654,8 +654,7 @@ function JobApplicantsContent() {
 
               return (
                 <div
-                  key={applicant.id || index}
-                  style={{
+                  key={index}                  style={{
                     display: "grid",
                     gridTemplateColumns:
                       "1fr 1.5fr 1fr 1fr 1fr 200px",
