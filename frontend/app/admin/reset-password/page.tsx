@@ -1,16 +1,21 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { Suspense, useEffect, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL;
 
 function parseLambdaResponse(outer: any, res: Response) {
-  const statusCode = typeof outer?.statusCode === "number" ? outer.statusCode : res.status;
+  const statusCode =
+    typeof outer?.statusCode === "number" ? outer.statusCode : res.status;
 
   let payload: any = {};
   if (typeof outer?.body === "string") {
-    try { payload = JSON.parse(outer.body); } catch { payload = {}; }
+    try {
+      payload = JSON.parse(outer.body);
+    } catch {
+      payload = {};
+    }
   } else if (outer?.body) payload = outer.body;
   else payload = outer;
 
@@ -21,7 +26,8 @@ function isStrongPassword(pw: string) {
   return /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d).{8,}$/.test(pw);
 }
 
-export default function AdminResetPasswordPage() {
+// ✅ Inner component uses useSearchParams()
+function AdminResetPasswordInner() {
   const router = useRouter();
   const searchParams = useSearchParams();
 
@@ -51,7 +57,9 @@ export default function AdminResetPasswordPage() {
       return;
     }
     if (!isStrongPassword(newPassword)) {
-      setMessage("Password must be 8+ chars with uppercase, lowercase, and a number.");
+      setMessage(
+        "Password must be 8+ chars with uppercase, lowercase, and a number."
+      );
       return;
     }
 
@@ -73,7 +81,6 @@ export default function AdminResetPasswordPage() {
 
       if (statusCode >= 400) {
         setMessage(payload?.message || "Failed to reset password.");
-        setLoading(false);
         return;
       }
 
@@ -86,8 +93,26 @@ export default function AdminResetPasswordPage() {
   };
 
   return (
-    <div style={{ minHeight: "100vh", display: "grid", placeItems: "center", background: "#F3F4F6", padding: 20 }}>
-      <div style={{ width: "100%", maxWidth: 560, background: "#fff", borderRadius: 20, padding: 36, border: "1px solid #E5E7EB", boxShadow: "0 20px 40px rgba(0,0,0,0.08)" }}>
+    <div
+      style={{
+        minHeight: "100vh",
+        display: "grid",
+        placeItems: "center",
+        background: "#F3F4F6",
+        padding: 20,
+      }}
+    >
+      <div
+        style={{
+          width: "100%",
+          maxWidth: 560,
+          background: "#fff",
+          borderRadius: 20,
+          padding: 36,
+          border: "1px solid #E5E7EB",
+          boxShadow: "0 20px 40px rgba(0,0,0,0.08)",
+        }}
+      >
         <h1 style={{ fontSize: 30, fontWeight: 800 }}>Reset Password</h1>
         <p style={{ marginTop: 8, marginBottom: 22, color: "#6B7280" }}>
           Enter the reset code and set a new password.
@@ -135,12 +160,45 @@ export default function AdminResetPasswordPage() {
           </p>
         )}
 
-        <div style={{ display: "flex", justifyContent: "space-between", marginTop: 18 }}>
-          <a href="/admin/login" style={link}>Back to login</a>
-          <a href="/" style={link}>Back to landing</a>
+        <div
+          style={{
+            display: "flex",
+            justifyContent: "space-between",
+            marginTop: 18,
+          }}
+        >
+          <a href="/admin/login" style={link}>
+            Back to login
+          </a>
+          <a href="/" style={link}>
+            Back to landing
+          </a>
         </div>
       </div>
     </div>
+  );
+}
+
+// ✅ Exported page wraps inner component with Suspense (fixes `output: export` build)
+export default function AdminResetPasswordPage() {
+  return (
+    <Suspense
+      fallback={
+        <div
+          style={{
+            minHeight: "100vh",
+            display: "grid",
+            placeItems: "center",
+            background: "#F3F4F6",
+            color: "#6B7280",
+          }}
+        >
+          Loading…
+        </div>
+      }
+    >
+      <AdminResetPasswordInner />
+    </Suspense>
   );
 }
 
