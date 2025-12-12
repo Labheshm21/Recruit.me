@@ -19,7 +19,7 @@ interface Applicant {
   application_date?: string;
   created_at?: string;
   resume_url?: string;
-  offer_sent?: boolean; // optional backend-provided flag
+  offer_sent?: boolean;
 }
 
 interface Job {
@@ -32,8 +32,8 @@ const GET_JOB_URL =
   "https://tg9n2lwkqk.execute-api.us-east-2.amazonaws.com/Initial/getjobdetails";
 const VIEW_APPLICANTS_URL =
   "https://tg9n2lwkqk.execute-api.us-east-2.amazonaws.com/Initial/viewapplicants";
-
-// Your provided API endpoint for offers (single endpoint handling both send/rescind)
+const UPDATE_RATING_URL =
+  "https://tg9n2lwkqk.execute-api.us-east-2.amazonaws.com/Initial/updateApplicantRating";
 const OFFER_API_URL =
   "https://tg9n2lwkqk.execute-api.us-east-2.amazonaws.com/Initial/offerjob";
 
@@ -47,21 +47,37 @@ function JobApplicantsContent() {
   const [page, setPage] = useState<number>(1);
   const perPage = 10;
 
-  // Track which applicants have offers (local state fallback if backend not used)
   const [offers, setOffers] = useState<Record<number, boolean>>({});
-  // Track loading per-applicant for send/rescind action
   const [offerLoading, setOfferLoading] = useState<number | null>(null);
-  // Track messages to show (optional)
   const [message, setMessage] = useState<string>("");
 
-  // NEW: track "announce hiring decision" modal open/close
-  const [announceModalOpen, setAnnounceModalOpen] = useState<boolean>(false);
+  function ratingsStorageKey(jid: string | number) {
+    return `applicant_ratings_${jid}`;
+  }
+
+  function loadSavedRatings(jid: string | number) {
+    try {
+      const raw = localStorage.getItem(ratingsStorageKey(jid));
+      if (!raw) return {} as Record<number, string>;
+      return JSON.parse(raw) as Record<number, string>;
+    } catch (e) {
+      console.error("Failed to read saved ratings:", e);
+      return {} as Record<number, string>;
+    }
+  }
+
+  function saveRatingsMap(jid: string | number, map: Record<number, string>) {
+    try {
+      localStorage.setItem(ratingsStorageKey(jid), JSON.stringify(map));
+    } catch (e) {
+      console.error("Failed to save ratings map:", e);
+    }
+  }
 
   async function loadData(currentJobId: string): Promise<void> {
     try {
       const companyId = localStorage.getItem("company_id");
 
-      // Load job details
       const jobRes = await fetch(GET_JOB_URL, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -73,23 +89,27 @@ function JobApplicantsContent() {
       );
       setJob(foundJob || null);
 
-      // Load applicants
       const appRes = await fetch(VIEW_APPLICANTS_URL, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ job_id: Number(currentJobId) }),
       });
       const appData = await appRes.json();
-
-      // Handle different response structures
       const applicantsList: Applicant[] =
         appData.applicants || appData.data || appData.applications || [];
 
-      setApplicants(applicantsList);
+      const savedRatings = loadSavedRatings(currentJobId);
+      const mergedApplicants = applicantsList.map((a: Applicant) => {
+        if (savedRatings && savedRatings[a.id]) {
+          return { ...a, rating: savedRatings[a.id] };
+        }
+        return a;
+      });
 
-      // Initialize offers map from backend-provided flag or status if present
+      setApplicants(mergedApplicants);
+
       const initialOffers: Record<number, boolean> = {};
-      for (const a of applicantsList) {
+      for (const a of mergedApplicants) {
         initialOffers[a.id] =
           !!a.offer_sent ||
           (a.application_status || "").toLowerCase() === "offered";
@@ -103,14 +123,59 @@ function JobApplicantsContent() {
     }
   }
 
-  // Helper to update a single applicant in state
   function updateApplicantInState(id: number, patch: Partial<Applicant>) {
     setApplicants((prev) =>
       prev.map((a) => (a.id === id ? { ...a, ...patch } : a))
     );
   }
 
-  // Send offer handler
+  async function updateApplicantRating(
+    applicantId: number,
+    newRating: string
+  ): Promise<void> {
+    if (!jobId) return;
+
+    updateApplicantInState(applicantId, { rating: newRating });
+    const key = jobId;
+    const map = loadSavedRatings(key);
+    map[applicantId] = newRating;
+    saveRatingsMap(key, map);
+
+    try {
+      const companyId = localStorage.getItem("company_id");
+      const body = {
+        job_id: Number(jobId),
+        applicant_id: Number(applicantId),
+        rating: newRating,
+        company_id: companyId ? Number(companyId) : undefined,
+      };
+
+      const res = await fetch(UPDATE_RATING_URL, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      });
+
+      if (!res.ok) {
+        const out = await res.json().catch(() => ({}));
+        const errMsg =
+          out?.error ||
+          out?.message ||
+          `Failed to persist rating (status ${res.status})`;
+        setMessage(errMsg);
+      } else {
+        const out = await res.json().catch(() => ({}));
+        if (out && out.updatedApplicant) {
+          updateApplicantInState(applicantId, out.updatedApplicant);
+        }
+        setMessage("");
+      }
+    } catch (err) {
+      console.error("updateApplicantRating error:", err);
+      setMessage("Network error while saving rating. Saved locally.");
+    }
+  }
+
   async function sendOffer(applicant: Applicant) {
     const id = applicant.id;
     setOfferLoading(id);
@@ -138,7 +203,6 @@ function JobApplicantsContent() {
         const errMsg = out.error || "Failed to send offer";
         setMessage(errMsg);
       } else {
-        // mark as sent locally and update applicant status to Offered
         setOffers((prev) => ({ ...prev, [id]: true }));
         updateApplicantInState(id, {
           offer_sent: true,
@@ -154,7 +218,6 @@ function JobApplicantsContent() {
     }
   }
 
-  // Rescind offer handler
   async function rescindOffer(applicant: Applicant) {
     const id = applicant.id;
     setOfferLoading(id);
@@ -182,7 +245,6 @@ function JobApplicantsContent() {
         const errMsg = out.error || "Failed to rescind offer";
         setMessage(errMsg);
       } else {
-        // mark rescinded locally and set a sensible default status (Pending)
         setOffers((prev) => ({ ...prev, [id]: false }));
         updateApplicantInState(id, {
           offer_sent: false,
@@ -205,35 +267,29 @@ function JobApplicantsContent() {
       return;
     }
 
-    // Read job id from sessionStorage (set by the button that navigates here)
     const storedId =
       typeof window !== "undefined"
         ? sessionStorage.getItem("view_job_id")
         : null;
 
     if (!storedId) {
-      // If missing, send user back to jobs list
       router.push("/company/jobs");
       return;
     }
 
     setJobId(storedId);
     loadData(storedId);
-
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // NEW: persist applicants in localStorage so Job Details page can use them
   useEffect(() => {
-    if (applicants.length === 0) return;
+    if (applicants.length === 0 || !jobId) return;
     try {
       localStorage.setItem("last_applicants", JSON.stringify(applicants));
     } catch (e) {
       console.error("Failed to store applicants for reporting", e);
     }
-  }, [applicants]);
+  }, [applicants, jobId]);
 
-  // Pagination
   const totalPages = Math.max(1, Math.ceil(applicants.length / perPage));
   const paginatedApplicants = applicants.slice(
     (page - 1) * perPage,
@@ -331,7 +387,9 @@ function JobApplicantsContent() {
       case "rejected":
         return { ...base, background: "#FEE2E2", color: "#991B1B" };
       case "offered":
-        return { ...base, background: "#E0F2FE", color: "#075985" }; // offered badge style
+        return { ...base, background: "#E0F2FE", color: "#075985" };
+      case "hired":
+        return { ...base, background: "#D1FAE5", color: "#065F46" };
       default:
         return { ...base, background: "#E5E7EB", color: "#374151" };
     }
@@ -342,9 +400,7 @@ function JobApplicantsContent() {
   ).length;
 
   return (
-    <div
-      style={{ minHeight: "100vh", background: "#F3F4F6", padding: "32px 16px" }}
-    >
+    <div style={{ minHeight: "100vh", background: "#F3F4F6", padding: "32px 16px" }}>
       <div style={{ maxWidth: 1000, margin: "0 auto" }}>
         {/* Header */}
         <div
@@ -376,9 +432,6 @@ function JobApplicantsContent() {
             </p>
           </div>
           <div style={{ display: "flex", gap: 12, flexWrap: "wrap" }}>
-            {/* NEW: Announce hiring decision */}
-            
-
             <button
               onClick={() => {
                 if (jobId) {
@@ -400,7 +453,6 @@ function JobApplicantsContent() {
             >
               📋 View Job
             </button>
-
             <Link
               href="/company/jobs"
               style={{
@@ -483,11 +535,9 @@ function JobApplicantsContent() {
                 margin: 0,
               }}
             >
-              {
-                applicants.filter(
-                  (a) => (a.application_status || "").toLowerCase() === "pending"
-                ).length
-              }
+              {applicants.filter(
+                (a) => (a.application_status || "").toLowerCase() === "pending"
+              ).length}
             </p>
             <p style={{ fontSize: 13, color: "#6B7280", margin: 0 }}>Pending</p>
           </div>
@@ -508,15 +558,11 @@ function JobApplicantsContent() {
                 margin: 0,
               }}
             >
-              {
-                applicants.filter(
-                  (a) => (a.application_status || "").toLowerCase() === "accepted"
-                ).length
-              }
+              {applicants.filter(
+                (a) => (a.application_status || "").toLowerCase() === "accepted"
+              ).length}
             </p>
-            <p style={{ fontSize: 13, color: "#6B7280", margin: 0 }}>
-              Accepted
-            </p>
+            <p style={{ fontSize: 13, color: "#6B7280", margin: 0 }}>Accepted</p>
           </div>
           <div
             style={{
@@ -535,17 +581,12 @@ function JobApplicantsContent() {
                 margin: 0,
               }}
             >
-              {
-                applicants.filter(
-                  (a) => (a.application_status || "").toLowerCase() === "rejected"
-                ).length
-              }
+              {applicants.filter(
+                (a) => (a.application_status || "").toLowerCase() === "rejected"
+              ).length}
             </p>
-            <p style={{ fontSize: 13, color: "#6B7280", margin: 0 }}>
-              Rejected
-            </p>
+            <p style={{ fontSize: 13, color: "#6B7280", margin: 0 }}>Rejected</p>
           </div>
-          {/* NEW: Offered stat */}
           <div
             style={{
               background: "white",
@@ -559,7 +600,7 @@ function JobApplicantsContent() {
               style={{
                 fontSize: 28,
                 fontWeight: 700,
-                color: "#0EA5E9",
+                color: "#2563EB",
                 margin: 0,
               }}
             >
@@ -569,432 +610,161 @@ function JobApplicantsContent() {
           </div>
         </div>
 
-        {/* Applicants List */}
-        {applicants.length === 0 ? (
-          <div
-            style={{
-              background: "white",
-              borderRadius: 16,
-              padding: 48,
-              textAlign: "center",
-              boxShadow: "0 4px 12px rgba(0,0,0,0.08)",
-            }}
-          >
-            <p style={{ fontSize: 48, margin: 0 }}>📭</p>
-            <h2
-              style={{
-                fontSize: 20,
-                fontWeight: 600,
-                color: "#374151",
-                marginTop: 16,
-              }}
-            >
-              No Applicants Yet
-            </h2>
-            <p style={{ color: "#6B7280", marginTop: 8 }}>
-              When candidates apply for this job, they will appear here.
-            </p>
-          </div>
-        ) : (
-          <div
-            style={{
-              background: "white",
-              borderRadius: 16,
-              overflow: "hidden",
-              boxShadow: "0 4px 12px rgba(0,0,0,0.08)",
-            }}
-          >
-            {/* Table Header */}
-            <div
-              style={{
-                display: "grid",
-                gridTemplateColumns:
-                  "1fr 1.5fr 1fr 1fr 1fr 200px",
-                padding: "16px 20px",
-                background: "#F9FAFB",
-                borderBottom: "1px solid #E5E7EB",
-                fontWeight: 600,
-                fontSize: 13,
-                color: "#6B7280",
-                textTransform: "uppercase",
-              }}
-            >
-              <span>Name</span>
-              <span>Email</span>
-              <span>Applied</span>
-              <span>Status</span>
-              <span>Rating</span>
-              <span style={{ textAlign: "center" }}>Actions</span>
-            </div>
+        {/* Applicants Table */}
+        <div
+          style={{
+            background: "white",
+            borderRadius: 12,
+            padding: 0,
+            overflow: "hidden",
+            boxShadow: "0 2px 12px rgba(0,0,0,0.05)",
+          }}
+        >
+          {paginatedApplicants.map((applicant) => {
+            const offerSent =
+              !!offers[applicant.id] ||
+              (applicant.application_status || "").toLowerCase() === "offered";
+            const isHirable =
+              (applicant.rating || "").toLowerCase() === "hirable".toLowerCase();
 
-            {/* Table Rows */}
-            {paginatedApplicants.map((applicant, index) => {
-              // consider applicant as having an offer if either local offers map says so OR their status is "offered"
-              const offerSent =
-                !!offers[applicant.id] ||
-                (applicant.application_status || "").toLowerCase() === "offered";
-              const isHirable =
-                (applicant.rating || "").toLowerCase() ===
-                "hirable".toLowerCase();
+            const statusUpper = (applicant.application_status || "").toUpperCase();
+            const disableInputs = statusUpper === "HIRED" || statusUpper === "REJECTED";
 
-              return (
-                <div
-                  key={applicant.id}                  style={{
-                    display: "grid",
-                    gridTemplateColumns:
-                      "1fr 1.5fr 1fr 1fr 1fr 200px",
-                    padding: "16px 20px",
-                    borderBottom: "1px solid #F3F4F6",
-                    alignItems: "center",
-                    gap: 12,
-                  }}
-                >
-                  <span style={{ fontWeight: 600, color: "#111827" }}>
-                    {applicant.user_name ||
-                      applicant.name ||
-                      applicant.applicant_name ||
-                      "N/A"}
-                  </span>
-                  <span style={{ color: "#6B7280", fontSize: 14 }}>
-                    {applicant.user_email ||
-                      applicant.email ||
-                      applicant.applicant_email ||
-                      "N/A"}
-                  </span>
-                  <span style={{ color: "#6B7280", fontSize: 14 }}>
-                    {applicant.applied_at ||
-                    applicant.application_date ||
-                    applicant.created_at
-                      ? new Date(
-                          applicant.applied_at ||
-                            applicant.application_date ||
-                            applicant.created_at ||
-                            ""
-                        ).toLocaleDateString()
-                      : "N/A"}
-                  </span>
-                  <span
-                    style={getStatusBadge(
-                      applicant.application_status || "pending"
-                    )}
-                  >
-                    {applicant.application_status || "Pending"}
-                  </span>
-                  <div>
-                    <select
-                      value={applicant.rating ?? "Wait"}
-                      onChange={(e) => {
-                        const newRating = e.target.value;
-                        // update local rating
-                        setApplicants((prev) =>
-                          prev.map((a) =>
-                            a.id === applicant.id ? { ...a, rating: newRating } : a
-                          )
-                        );
-                      }}
-                      style={{
-                        padding: "8px 10px",
-                        borderRadius: 8,
-                        border: "1px solid #E5E7EB",
-                        background: "white",
-                        fontSize: 14,
-                        fontWeight: 600,
-                        color: "#111827",
-                        width: "100%",
-                      }}
-                    >
-                      <option value="Wait">Wait</option>
-                      <option value="Hirable">Hirable</option>
-                      <option value="Unacceptable">Unacceptable</option>
-                    </select>
-                  </div>
-
-                  {/* Actions column: Send Offer / Rescind Offer */}
-                  <div
-                    style={{
-                      display: "flex",
-                      justifyContent: "center",
-                      gap: 8,
-                    }}
-                  >
-                    {/* Send Offer: only show when Hirable && not already sent */}
-                    {!offerSent && isHirable && (
-                      <button
-                        onClick={() => sendOffer(applicant)}
-                        disabled={offerLoading === applicant.id}
-                        style={{
-                          padding: "8px 12px",
-                          background:
-                            offerLoading === applicant.id
-                              ? "#E5E7EB"
-                              : "#10B981",
-                          color:
-                            offerLoading === applicant.id
-                              ? "#9CA3AF"
-                              : "white",
-                          borderRadius: 8,
-                          border: "none",
-                          cursor:
-                            offerLoading === applicant.id
-                              ? "not-allowed"
-                              : "pointer",
-                          fontWeight: 600,
-                        }}
-                      >
-                        {offerLoading === applicant.id
-                          ? "Sending..."
-                          : "Send Offer"}
-                      </button>
-                    )}
-
-                    {/* Rescind Offer: show when offerSent OR application_status is OFFERED */}
-                    {offerSent && (
-                      <button
-                        onClick={() => rescindOffer(applicant)}
-                        disabled={offerLoading === applicant.id}
-                        style={{
-                          padding: "8px 12px",
-                          background:
-                            offerLoading === applicant.id
-                              ? "#E5E7EB"
-                              : "#EF4444",
-                          color:
-                            offerLoading === applicant.id
-                              ? "#9CA3AF"
-                              : "white",
-                          borderRadius: 8,
-                          border: "none",
-                          cursor:
-                            offerLoading === applicant.id
-                              ? "not-allowed"
-                              : "pointer",
-                          fontWeight: 600,
-                        }}
-                      >
-                        {offerLoading === applicant.id
-                          ? "Processing..."
-                          : "Rescind Offer"}
-                      </button>
-                    )}
-
-                    {/* If not hirable and not sent, show disabled placeholder so layout doesn't shift */}
-                    {!offerSent && !isHirable && (
-                      <button
-                        disabled
-                        style={{
-                          padding: "8px 12px",
-                          background: "#E5E7EB",
-                          color: "#9CA3AF",
-                          borderRadius: 8,
-                          border: "none",
-                          cursor: "not-allowed",
-                          fontWeight: 600,
-                        }}
-                      >
-                        No Action
-                      </button>
-                    )}
-                  </div>
-                </div>
-              );
-            })}
-
-            {/* Pagination */}
-            {totalPages > 1 && (
+            return (
               <div
+                key={applicant.id}
                 style={{
-                  display: "flex",
-                  justifyContent: "center",
+                  display: "grid",
+                  gridTemplateColumns: "1fr 1.5fr 1fr 1fr 1fr 200px",
+                  padding: "16px 20px",
+                  borderBottom: "1px solid #F3F4F6",
                   alignItems: "center",
-                  gap: 8,
-                  padding: 20,
-                  borderTop: "1px solid #E5E7EB",
+                  gap: 12,
                 }}
               >
-                <button
-                  onClick={() => setPage((p) => Math.max(1, p - 1))}
-                  disabled={page === 1}
-                  style={{
-                    padding: "8px 16px",
-                    background: page === 1 ? "#E5E7EB" : "#2563EB",
-                    color: page === 1 ? "#9CA3AF" : "white",
-                    border: "none",
-                    borderRadius: 6,
-                    cursor: page === 1 ? "not-allowed" : "pointer",
-                    fontWeight: 500,
-                  }}
-                >
-                  ← Previous
-                </button>
-                <span
-                  style={{
-                    padding: "0 16px",
-                    color: "#6B7280",
-                    fontSize: 14,
-                  }}
-                >
-                  Page {page} of {totalPages}
+                <span style={{ fontWeight: 600, color: "#111827" }}>
+                  {applicant.user_name ||
+                    applicant.name ||
+                    applicant.applicant_name ||
+                    "N/A"}
                 </span>
-                <button
-                  onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
-                  disabled={page === totalPages}
-                  style={{
-                    padding: "8px 16px",
-                    background:
-                      page === totalPages ? "#E5E7EB" : "#2563EB",
-                    color:
-                      page === totalPages ? "#9CA3AF" : "white",
-                    border: "none",
-                    borderRadius: 6,
-                    cursor:
-                      page === totalPages ? "not-allowed" : "pointer",
-                    fontWeight: 500,
-                  }}
-                >
-                  Next →
-                </button>
+                <span style={{ color: "#6B7280", fontSize: 14 }}>
+                  {applicant.user_email ||
+                    applicant.email ||
+                    applicant.applicant_email ||
+                    "N/A"}
+                </span>
+                <span style={{ color: "#6B7280", fontSize: 14 }}>
+                  {applicant.applied_at ||
+                  applicant.application_date ||
+                  applicant.created_at
+                    ? new Date(
+                        applicant.applied_at ||
+                          applicant.application_date ||
+                          applicant.created_at ||
+                          ""
+                      ).toLocaleDateString()
+                    : "N/A"}
+                </span>
+                <span style={getStatusBadge(applicant.application_status || "pending")}>
+                  {applicant.application_status || "Pending"}
+                </span>
+
+                {/* Rating Dropdown */}
+                <div>
+                  <select
+                    value={applicant.rating ?? "Wait"}
+                    disabled={disableInputs}
+                    onChange={(e) => {
+                      if (!disableInputs) {
+                        updateApplicantRating(applicant.id, e.target.value);
+                      }
+                    }}
+                    style={{
+                      padding: "8px 10px",
+                      borderRadius: 8,
+                      border: "1px solid #E5E7EB",
+                      background: disableInputs ? "#F3F4F6" : "white",
+                      fontSize: 14,
+                      fontWeight: 600,
+                      color: "#111827",
+                      width: "100%",
+                      cursor: disableInputs ? "not-allowed" : "pointer",
+                    }}
+                  >
+                    <option value="Wait">Wait</option>
+                    <option value="Hirable">Hirable</option>
+                    <option value="Unacceptable">Unacceptable</option>
+                  </select>
+                </div>
+
+                {/* Actions */}
+                <div style={{ display: "flex", justifyContent: "center", gap: 8 }}>
+                  <button
+                    onClick={() => sendOffer(applicant)}
+                    disabled={offerSent || disableInputs || offerLoading === applicant.id || !isHirable}
+                    style={{
+                      padding: "8px 12px",
+                      background:
+                        offerSent || disableInputs || !isHirable ? "#E5E7EB" : "#10B981",
+                      color: offerSent || disableInputs || !isHirable ? "#9CA3AF" : "white",
+                      borderRadius: 8,
+                      border: "none",
+                      cursor:
+                        offerSent || disableInputs || !isHirable
+                          ? "not-allowed"
+                          : "pointer",
+                      fontWeight: 600,
+                    }}
+                  >
+                    {offerLoading === applicant.id ? "Sending..." : "Send Offer"}
+                  </button>
+
+                  <button
+                    onClick={() => rescindOffer(applicant)}
+                    disabled={!offerSent || disableInputs || offerLoading === applicant.id}
+                    style={{
+                      padding: "8px 12px",
+                      background: !offerSent || disableInputs ? "#E5E7EB" : "#EF4444",
+                      color: !offerSent || disableInputs ? "#9CA3AF" : "white",
+                      borderRadius: 8,
+                      border: "none",
+                      cursor: !offerSent || disableInputs ? "not-allowed" : "pointer",
+                      fontWeight: 600,
+                    }}
+                  >
+                    {offerLoading === applicant.id ? "Processing..." : "Rescind Offer"}
+                  </button>
+                </div>
               </div>
-            )}
+            );
+          })}
+        </div>
+
+        {/* Pagination */}
+        {totalPages > 1 && (
+          <div style={{ marginTop: 24, display: "flex", gap: 8, justifyContent: "center" }}>
+            {Array.from({ length: totalPages }, (_, i) => (
+              <button
+                key={i}
+                onClick={() => setPage(i + 1)}
+                style={{
+                  padding: "6px 12px",
+                  borderRadius: 6,
+                  border: "1px solid #D1D5DB",
+                  background: page === i + 1 ? "#2563EB" : "white",
+                  color: page === i + 1 ? "white" : "#374151",
+                  cursor: "pointer",
+                }}
+              >
+                {i + 1}
+              </button>
+            ))}
           </div>
         )}
       </div>
-
-      {/* NEW: Announce hiring decision modal */}
-      {announceModalOpen && (
-        <div
-          style={{
-            position: "fixed",
-            inset: 0,
-            background: "rgba(0,0,0,0.45)",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            zIndex: 50,
-          }}
-        >
-          <div
-            style={{
-              background: "white",
-              borderRadius: 16,
-              padding: 24,
-              maxWidth: 420,
-              width: "90%",
-              boxShadow: "0 10px 25px rgba(0,0,0,0.25)",
-            }}
-          >
-            <h2
-              style={{
-                fontSize: 20,
-                fontWeight: 700,
-                marginBottom: 8,
-                color: "#111827",
-              }}
-            >
-              Announce hiring decision?
-            </h2>
-            <p style={{ color: "#6B7280", marginBottom: 16 }}>
-              This will finalize your hiring decision for all candidates with{" "}
-              <strong>Offered</strong> status. No backend call is made yet,
-              this is a frontend-only confirmation for now.
-            </p>
-
-            <p
-              style={{
-                fontSize: 14,
-                color: "#4B5563",
-                marginBottom: 12,
-              }}
-            >
-              Currently{" "}
-              <strong>{offeredCount}</strong> applicant
-              {offeredCount === 1 ? "" : "s"} marked as{" "}
-              <span style={{ color: "#0EA5E9", fontWeight: 600 }}>
-                Offered
-              </span>
-              .
-            </p>
-
-            <div
-              style={{
-                display: "flex",
-                justifyContent: "flex-end",
-                gap: 8,
-                marginTop: 8,
-              }}
-            >
-              <button
-                onClick={() => setAnnounceModalOpen(false)}
-                style={{
-                  padding: "8px 14px",
-                  borderRadius: 8,
-                  border: "none",
-                  background: "#E5E7EB",
-                  color: "#374151",
-                  fontWeight: 500,
-                  cursor: "pointer",
-                }}
-              >
-                Cancel
-              </button>
-              <button
-                onClick={() => {
-                  alert(
-                    `Hiring decision announced for ${offeredCount} offered applicant(s). (Frontend only for now)`
-                  );
-                  setAnnounceModalOpen(false);
-                }}
-                style={{
-                  padding: "8px 14px",
-                  borderRadius: 8,
-                  border: "none",
-                  background: "#10B981",
-                  color: "white",
-                  fontWeight: 600,
-                  cursor: "pointer",
-                }}
-              >
-                Confirm
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   );
 }
 
-function LoadingFallback() {
-  return (
-    <div
-      style={{
-        minHeight: "100vh",
-        background: "#F3F4F6",
-        display: "flex",
-        flexDirection: "column",
-        alignItems: "center",
-        justifyContent: "center",
-      }}
-    >
-      <div
-        style={{
-          width: 40,
-          height: 40,
-          border: "4px solid #E5E7EB",
-          borderTopColor: "#2563EB",
-          borderRadius: "50%",
-          animation: "spin 1s linear infinite",
-        }}
-      />
-      <p style={{ marginTop: 16, color: "#6B7280" }}>Loading...</p>
-      <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
-    </div>
-  );
-}
-
-export default function JobApplicantsPage() {
-  return (
-    <Suspense fallback={<LoadingFallback />}>
-      <JobApplicantsContent />
-    </Suspense>
-  );
-}
+export default JobApplicantsContent;
