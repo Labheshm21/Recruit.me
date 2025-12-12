@@ -50,6 +50,7 @@ export default function ApplicantOffersPage() {
   const [error, setError] = useState("");
   const [message, setMessage] = useState("");
 
+  // load email
   useEffect(() => {
     if (typeof window === "undefined") return;
     const storedEmail = localStorage.getItem("email");
@@ -60,6 +61,7 @@ export default function ApplicantOffersPage() {
     setEmail(storedEmail);
   }, [router]);
 
+  // load offers when email is known
   useEffect(() => {
     if (!email) return;
     loadOffers(email);
@@ -97,23 +99,26 @@ export default function ApplicantOffersPage() {
     }
   }
 
+  // now takes jobId (not applicationId) because Lambda expects jobId
   async function handleDecision(
-    applicationId: number,
+    jobId: number,
     decision: "ACCEPT" | "REJECT"
   ) {
     if (!email) return;
     setMessage("");
     setError("");
 
+    const endpoint =
+      decision === "ACCEPT"
+        ? `${API_BASE_URL}/applicants/offers/accept`
+        : `${API_BASE_URL}/applicants/offers/reject`;
+
     try {
-      const res = await fetch(
-        `${API_BASE_URL}/applicants/offers/answer`,
-        {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ email, applicationId, decision }),
-        }
-      );
+      const res = await fetch(endpoint, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email, jobId }), // 👈 FIX: send jobId
+      });
 
       const outer = await res.json().catch(() => ({} as any));
       const { statusCode, payload } = parseLambdaResponse(outer, res);
@@ -125,7 +130,7 @@ export default function ApplicantOffersPage() {
 
       setMessage(payload?.message || "Offer updated.");
 
-      // refresh offers so UI reflects new decision
+      // refresh offers so UI reflects the new decision
       await loadOffers(email);
     } catch (err) {
       console.error("handleDecision error:", err);
@@ -218,10 +223,7 @@ export default function ApplicantOffersPage() {
                           className="btn-primary"
                           style={{ width: "auto" }}
                           onClick={() =>
-                            handleDecision(
-                              offer.applicationId,
-                              "ACCEPT"
-                            )
+                            handleDecision(offer.jobId, "ACCEPT")
                           }
                         >
                           Accept
@@ -230,10 +232,7 @@ export default function ApplicantOffersPage() {
                           className="btn-secondary"
                           style={{ width: "auto" }}
                           onClick={() =>
-                            handleDecision(
-                              offer.applicationId,
-                              "REJECT"
-                            )
+                            handleDecision(offer.jobId, "REJECT")
                           }
                         >
                           Reject
