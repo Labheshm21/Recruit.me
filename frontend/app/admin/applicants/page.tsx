@@ -8,8 +8,8 @@ const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL;
 type ApplicantRow = {
   userId: number;
   email: string;
-  appliedCount: number;        // matches Lambda
-  withdrawnCount: number;      // matches Lambda
+  appliedCount: number;
+  withdrawnCount: number;
   totalApplications?: number;
   activeApplications?: number;
   offers?: number;
@@ -39,25 +39,40 @@ function parseLambdaResponse(outer: any, res: Response) {
 
 export default function AdminApplicantsPage() {
   const router = useRouter();
+
   const [rows, setRows] = useState<ApplicantRow[]>([]);
   const [page, setPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
+
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+
+  // ✅ AUTH GUARD
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const adminEmail = localStorage.getItem("admin_email");
+    if (!adminEmail) router.push("/admin/login");
+  }, [router]);
+
+  const handleLogout = () => {
+    if (typeof window !== "undefined") {
+      localStorage.removeItem("admin_email");
+      localStorage.removeItem("admin_id");
+      localStorage.removeItem("admin_name");
+    }
+    router.push("/admin/login");
+  };
 
   const loadPage = async (p: number) => {
     setLoading(true);
     setError(null);
 
     try {
-      const res = await fetch(
-        `${API_BASE_URL}/admin/applicants/report`,
-        {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ page: p, pageSize: 20 }),
-        }
-      );
+      const res = await fetch(`${API_BASE_URL}/admin/applicants/report`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ page: p, pageSize: 20 }),
+      });
 
       const outer = await res.json().catch(() => ({} as any));
       const { statusCode, payload } = parseLambdaResponse(outer, res);
@@ -65,7 +80,6 @@ export default function AdminApplicantsPage() {
       if (statusCode >= 400) {
         setError(payload?.message || "Failed to load applicants report.");
         setRows([]);
-        setLoading(false);
         return;
       }
 
@@ -119,12 +133,35 @@ export default function AdminApplicantsPage() {
 
   return (
     <div className="page-shell--scroll">
-      <div style={{ maxWidth: "960px", margin: "0 auto 0.75rem" }}>
+      {/* ✅ top nav */}
+      <div
+        style={{
+          maxWidth: "960px",
+          margin: "0 auto 0.75rem",
+          display: "flex",
+          justifyContent: "space-between",
+          alignItems: "center",
+          gap: "0.5rem",
+        }}
+      >
+        <button onClick={() => router.push("/admin/home")} className="btn-link">
+          ← Back to Admin Dashboard
+        </button>
+
         <button
-          onClick={() => router.push("/admin")}
-          className="btn-link"
+          onClick={handleLogout}
+          style={{
+            padding: "10px 16px",
+            borderRadius: "9999px",
+            border: "1px solid #FED7AA",
+            background: "#FFF7ED",
+            fontSize: "14px",
+            color: "#9A3412",
+            cursor: "pointer",
+            fontWeight: 700,
+          }}
         >
-          ← Back to Admin Home
+          Log Out
         </button>
       </div>
 
@@ -150,12 +187,7 @@ export default function AdminApplicantsPage() {
             }}
           >
             <thead>
-              <tr
-                style={{
-                  borderBottom: "1px solid #e5e7eb",
-                  textAlign: "left",
-                }}
-              >
+              <tr style={{ borderBottom: "1px solid #e5e7eb", textAlign: "left" }}>
                 <th style={{ padding: "0.5rem" }}>Email</th>
                 <th style={{ padding: "0.5rem" }}># Applied</th>
                 <th style={{ padding: "0.5rem" }}># Withdrawn</th>
@@ -163,10 +195,7 @@ export default function AdminApplicantsPage() {
             </thead>
             <tbody>
               {rows.map((r) => (
-                <tr
-                  key={r.email}
-                  style={{ borderBottom: "1px solid #f3f4f6" }}
-                >
+                <tr key={r.email} style={{ borderBottom: "1px solid #f3f4f6" }}>
                   <td style={{ padding: "0.5rem" }}>{r.email}</td>
                   <td style={{ padding: "0.5rem" }}>{r.appliedCount}</td>
                   <td style={{ padding: "0.5rem" }}>{r.withdrawnCount}</td>
@@ -176,6 +205,7 @@ export default function AdminApplicantsPage() {
           </table>
         )}
 
+        {/* pagination */}
         <div
           style={{
             marginTop: "1rem",
