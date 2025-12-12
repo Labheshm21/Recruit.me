@@ -1,7 +1,7 @@
 "use client";
 
 import { Suspense, useState, useEffect } from "react";
-import { useSearchParams, useRouter } from "next/navigation";
+import { useSearchParams } from "next/navigation";
 import Link from "next/link";
 
 interface Job {
@@ -17,26 +17,49 @@ interface Job {
   work_mode?: string;
 }
 
+interface Applicant {
+  id: number;
+  application_status?: string;
+
+  // skills may come under different keys depending on backend
+  skills?: string;
+  applicant_skills?: string;
+  user_skills?: string;
+  skillset?: string;
+
+  // optional fields (not required for report)
+  rating?: string;
+  user_name?: string;
+  applicant_name?: string;
+}
+
 const GET_JOB_URL =
   "https://tg9n2lwkqk.execute-api.us-east-2.amazonaws.com/Initial/getjobdetails";
-const ACTIVATE_URL =
-  "https://tg9n2lwkqk.execute-api.us-east-2.amazonaws.com/Initial/activatejob";
-const DEACTIVATE_URL =
-  "https://tg9n2lwkqk.execute-api.us-east-2.amazonaws.com/Initial/deactivatejob";
+const VIEW_APPLICANTS_URL =
+  "https://tg9n2lwkqk.execute-api.us-east-2.amazonaws.com/Initial/viewapplicants";
+
+function normalizeSkills(a: Applicant): string {
+  return (
+    a.skills ||
+    a.applicant_skills ||
+    a.user_skills ||
+    a.skillset ||
+    ""
+  ).toLowerCase();
+}
 
 function JobDetailsContent() {
   const searchParams = useSearchParams();
-  const router = useRouter();
   const jobIdFromQuery = searchParams.get("id");
 
   const [job, setJob] = useState<Job | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
-  const [actionLoading, setActionLoading] = useState(false);
 
   // Report state
   const [skillQuery, setSkillQuery] = useState("");
   const [matchCount, setMatchCount] = useState<number | null>(null);
+  const [reportLoading, setReportLoading] = useState(false);
 
   const [jobId, setJobId] = useState<string | null>(jobIdFromQuery);
 
@@ -78,7 +101,51 @@ function JobDetailsContent() {
 
   useEffect(() => {
     if (jobId) fetchJob();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [jobId]);
+
+  async function generateReport() {
+    const tokens = skillQuery
+      .split(",")
+      .map((s) => s.trim().toLowerCase())
+      .filter(Boolean);
+
+    if (!tokens.length) {
+      alert("Enter at least one skill");
+      return;
+    }
+    if (!jobId) {
+      alert("No job ID");
+      return;
+    }
+
+    setReportLoading(true);
+    setMatchCount(null);
+
+    try {
+      const res = await fetch(VIEW_APPLICANTS_URL, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ job_id: Number(jobId) }),
+      });
+
+      const data = await res.json();
+      const applicants: Applicant[] =
+        data.applicants || data.data || data.applications || [];
+
+      const count = applicants.filter((a) => {
+        const s = normalizeSkills(a);
+        if (!s) return false;
+        return tokens.every((t) => s.includes(t));
+      }).length;
+
+      setMatchCount(count);
+    } catch (e) {
+      alert("Failed to generate report");
+    } finally {
+      setReportLoading(false);
+    }
+  }
 
   if (loading) return <p className="p-8">Loading…</p>;
   if (error || !job) return <p className="p-8 text-red-600">{error}</p>;
@@ -93,12 +160,10 @@ function JobDetailsContent() {
 
         {/* Application Match Report */}
         <div id="report" className="p-6 border-t">
-          <h2 className="text-lg font-bold mb-2">
-            📊 Application Match Report
-          </h2>
+          <h2 className="text-lg font-bold mb-2">📊 Application Match Report</h2>
 
           <p className="text-sm text-gray-600 mb-3">
-            Enter skills to check how many applicants match this job.
+            Enter skills and we’ll count how many applicants have those skills.
           </p>
 
           <input
@@ -109,62 +174,27 @@ function JobDetailsContent() {
           />
 
           <button
-            onClick={() => {
-              const tokens = skillQuery
-                .split(",")
-                .map((s) => s.trim().toLowerCase())
-                .filter(Boolean);
-
-              if (!tokens.length) {
-                alert("Enter at least one skill");
-                return;
-              }
-
-              const jobSkills = (job.skills || "").toLowerCase();
-              const matchesJob = tokens.every((t) =>
-                jobSkills.includes(t)
-              );
-
-              if (!matchesJob) {
-                setMatchCount(0);
-                return;
-              }
-
-              const stored = localStorage.getItem("last_applicants");
-              if (!stored) {
-                alert("Open Applicants page first to load data");
-                return;
-              }
-
-              const applicants = JSON.parse(stored);
-              setMatchCount(applicants.length);
-            }}
-            className="px-4 py-2 bg-blue-600 text-white rounded"
+            onClick={generateReport}
+            disabled={reportLoading}
+            className="px-4 py-2 bg-blue-600 text-white rounded disabled:opacity-60"
           >
-            Generate Report
+            {reportLoading ? "Generating..." : "Generate Report"}
           </button>
 
           {matchCount !== null && (
             <div className="mt-4 font-semibold text-blue-600">
-              {matchCount} applicant{matchCount === 1 ? "" : "s"} match your
-              list.
+              {matchCount} applicant{matchCount === 1 ? "" : "s"} match your list.
             </div>
           )}
         </div>
 
         <div className="p-6 border-t flex gap-4">
-          <button
-            onClick={() => router.push("/company/job-applicants")}
-            className="px-4 py-2 bg-purple-600 text-white rounded"
-          >
-            View Applicants
-          </button>
-          <button
-            onClick={() => router.push("/company/jobs")}
-            className="px-4 py-2 bg-gray-300 rounded"
+          <Link
+            href="/company/jobs"
+            className="px-4 py-2 bg-gray-300 rounded inline-flex items-center"
           >
             Back to Jobs
-          </button>
+          </Link>
         </div>
       </div>
     </div>
