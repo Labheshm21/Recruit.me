@@ -377,22 +377,7 @@ function JobApplicantsContent() {
           </div>
           <div style={{ display: "flex", gap: 12, flexWrap: "wrap" }}>
             {/* NEW: Announce hiring decision */}
-            <button
-              onClick={() => setAnnounceModalOpen(true)}
-              style={{
-                padding: "10px 20px",
-                background: "#10B981",
-                color: "white",
-                borderRadius: 8,
-                textDecoration: "none",
-                fontWeight: 600,
-                fontSize: 14,
-                border: "none",
-                cursor: "pointer",
-              }}
-            >
-              📢 Announce Hiring Decision
-            </button>
+            
 
             <button
               onClick={() => {
